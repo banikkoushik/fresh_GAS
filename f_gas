@@ -1,0 +1,263 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Freshers Check Desk</title>
+  <script src="https://unpkg.com/html5-qrcode" type="text/javascript"></script>
+  <style>
+    body {
+      font-family: 'Segoe UI', sans-serif;
+      background: #f5f7fa;
+      margin: 0;
+      padding: 0;
+      display: flex;
+      justify-content: center;
+      align-items: center;
+      flex-direction: column;
+      min-height: 100vh;
+    }
+    #login, #scanner, #result {
+      background: white;
+      padding: 20px;
+      border-radius: 12px;
+      box-shadow: 0 4px 10px rgba(0,0,0,0.1);
+      width: 90%;
+      max-width: 420px;
+      display: none;
+    }
+    h2 {
+      margin-bottom: 16px;
+      text-align: center;
+    }
+    button {
+      background: #0078d4;
+      color: white;
+      border: none;
+      padding: 10px 18px;
+      border-radius: 8px;
+      cursor: pointer;
+      font-size: 15px;
+      margin: 5px;
+    }
+    button:hover { background: #005fa3; }
+    input, select, textarea {
+      width: 100%;
+      margin: 8px 0;
+      padding: 8px;
+      border-radius: 6px;
+      border: 1px solid #ccc;
+      font-size: 14px;
+    }
+    #studentDetails p { margin: 6px 0; }
+    .message {
+      padding: 10px;
+      margin: 10px 0;
+      border-radius: 6px;
+      text-align: center;
+    }
+    .success { background: #e8f5e8; color: #2e7d32; }
+    .error { background: #ffebee; color: #c62828; }
+  </style>
+</head>
+<body>
+
+  <!-- LOGIN SCREEN -->
+  <div id="login">
+    <h2>Coordinator Login</h2>
+    <input type="text" id="coordinatorName" placeholder="Enter your name" />
+    <button onclick="login()">Login</button>
+    <div id="loginMessage" class="message" style="display: none;"></div>
+  </div>
+
+  <!-- SCANNER SCREEN -->
+  <div id="scanner">
+    <h2>Scan Student QR Code</h2>
+    <div id="qr-reader" style="width:100%;"></div>
+    <div id="scannerMessage" class="message" style="display: none;"></div>
+    <button onclick="logout()">Logout</button>
+  </div>
+
+  <!-- RESULT SCREEN -->
+  <div id="result">
+    <h2>Student Details</h2>
+    <div id="studentDetails"></div>
+    <select id="status">
+      <option value="">-- Select Status --</option>
+      <option value="Checked">Checked</option>
+      <option value="Problematic">Problematic</option>
+      <option value="Suspicious">Suspicious</option>
+    </select>
+    <textarea id="comment" rows="3" placeholder="Add comment (optional)"></textarea>
+    <button onclick="submitStatus()">Submit</button>
+    <button onclick="backToScanner()">Back to Scanner</button>
+    <div id="updateMessage" class="message" style="display: none;"></div>
+  </div>
+
+  <script>
+    const API_URL = "https://script.google.com/macros/s/AKfycbxZVCouAiscXHp6J1VCpuvuM2UpP1tkCLZqw3gKxqitD44dQmKiI2KvHYYLTnQJaxX6/exec";
+
+    let coordinator = "";
+    let currentStudent = null;
+    let qrScanner;
+
+    // Show login screen on load
+    document.getElementById("login").style.display = "block";
+
+    function showMessage(elementId, message, type) {
+      const element = document.getElementById(elementId);
+      element.textContent = message;
+      element.className = `message ${type}`;
+      element.style.display = 'block';
+      setTimeout(() => element.style.display = 'none', 5000);
+    }
+
+    async function login() {
+      const name = document.getElementById("coordinatorName").value.trim();
+      if (!name) {
+        showMessage('loginMessage', 'Please enter your name!', 'error');
+        return;
+      }
+      
+      coordinator = name;
+      document.getElementById("login").style.display = "none";
+      document.getElementById("scanner").style.display = "block";
+      startScanner();
+    }
+
+    function logout() {
+      coordinator = "";
+      stopScanner();
+      document.getElementById("scanner").style.display = "none";
+      document.getElementById("login").style.display = "block";
+      document.getElementById("coordinatorName").value = "";
+    }
+
+    function startScanner() {
+      qrScanner = new Html5Qrcode("qr-reader");
+      qrScanner.start(
+        { facingMode: "environment" },
+        { fps: 10, qrbox: 250 },
+        qrCodeMessage => {
+          stopScanner();
+          fetchStudent(qrCodeMessage);
+        },
+        error => {
+          // Ignore scanning errors (usually just no QR code in view)
+        }
+      ).catch(err => {
+        showMessage('scannerMessage', 'Camera error: ' + err.message, 'error');
+      });
+    }
+
+    function stopScanner() {
+      if (qrScanner) {
+        qrScanner.stop().catch(() => {});
+      }
+    }
+
+    async function fetchStudent(qrValue) {
+      showMessage('scannerMessage', 'Searching for student...', 'success');
+      
+      try {
+        const url = `${API_URL}?action=get&qr=${encodeURIComponent(qrValue)}`;
+        console.log('Fetching URL:', url);
+        
+        const res = await fetch(url);
+        const data = await res.json();
+        
+        console.log('API Response:', data);
+
+        if (!data.found) {
+          showMessage('scannerMessage', 'Student not found!', 'error');
+          setTimeout(() => {
+            document.getElementById("scannerMessage").style.display = "none";
+            startScanner();
+          }, 2000);
+          return;
+        }
+
+        currentStudent = data.student;
+        document.getElementById("scanner").style.display = "none";
+        document.getElementById("result").style.display = "block";
+
+        document.getElementById("studentDetails").innerHTML = `
+          <p><b>ID:</b> ${currentStudent.StudentID}</p>
+          <p><b>Name:</b> ${currentStudent.StudentName}</p>
+          <p><b>Class Roll No:</b> ${currentStudent.ClassRollNo}</p>
+          <p><b>Admission Date:</b> ${currentStudent.AdmissionDate}</p>
+          <p><b>Section:</b> ${currentStudent.Section}</p>
+          <p><b>Group:</b> ${currentStudent.Group}</p>
+          <p><b>Email:</b> ${currentStudent.Email}</p>
+          <p><b>Mobile:</b> ${currentStudent.Mobile}</p>
+          <p><b>Father:</b> ${currentStudent.FatherName}</p>
+          <p><b>Food Preference:</b> ${currentStudent.FoodPreference}</p>
+          ${currentStudent.Photo ? `<img src="${currentStudent.Photo}" alt="Student Photo" width="120" height="120" style="border-radius:10px;object-fit:cover;display:block;margin:10px auto;">` : ''}
+        `;
+        
+        // Reset form
+        document.getElementById("status").value = "";
+        document.getElementById("comment").value = "";
+        
+      } catch (err) {
+        console.error('Fetch error:', err);
+        showMessage('scannerMessage', 'Error fetching student data!', 'error');
+        setTimeout(() => {
+          document.getElementById("scannerMessage").style.display = "none";
+          startScanner();
+        }, 2000);
+      }
+    }
+
+    async function submitStatus() {
+      const status = document.getElementById("status").value;
+      const comment = document.getElementById("comment").value;
+
+      if (!status) {
+        showMessage('updateMessage', 'Please select a status!', 'error');
+        return;
+      }
+
+      const payload = {
+        action: "update",
+        StudentID: currentStudent.StudentID,
+        QRCode: currentStudent.QRCode,
+        Status: status,
+        Comment: comment,
+        Coordinator: coordinator
+      };
+
+      try {
+        showMessage('updateMessage', 'Updating status...', 'success');
+        
+        const response = await fetch(API_URL, {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify(payload)
+        });
+        
+        const result = await response.json();
+        
+        if (result.success) {
+          showMessage('updateMessage', 'Status updated successfully!', 'success');
+          setTimeout(() => {
+            backToScanner();
+          }, 1500);
+        } else {
+          showMessage('updateMessage', 'Error: ' + (result.error || 'Update failed'), 'error');
+        }
+      } catch (err) {
+        console.error('Update error:', err);
+        showMessage('updateMessage', 'Error updating status!', 'error');
+      }
+    }
+
+    function backToScanner() {
+      document.getElementById("result").style.display = "none";
+      document.getElementById("scanner").style.display = "block";
+      document.getElementById("updateMessage").style.display = "none";
+      startScanner();
+    }
+  </script>
+</body>
+</html>

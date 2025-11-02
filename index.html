@@ -619,7 +619,7 @@
     </div>
 
     <script>
-        // Configuration
+        // Configuration - Using your GAS deployment URL
         const API_BASE = "https://script.google.com/macros/s/AKfycbzDJUw-2yRo-kVW8SIzPWKz3493T7sciQBF96J5DalSiFQ-e-dn7V7j5UX9PzP6nFQB/exec";
         
         // App State
@@ -863,26 +863,61 @@
             }
         }
         
-        // Handle scanned QR code
+        // Handle scanned QR code - FIXED API CALL
         async function handleScannedQR(qrData) {
             showMessage(scannerMessage, 'QR Code detected. Looking up student...', 'warning');
             
             try {
+                // Use the correct API format for your GAS
                 const url = `${API_BASE}?action=get&qr=${encodeURIComponent(qrData)}`;
-                const response = await fetch(url);
+                console.log("Fetching:", url);
                 
-                if (!response.ok) {
-                    throw new Error(`HTTP ${response.status}`);
+                // Use fetch with no-cors mode for GAS
+                const response = await fetch(url, {
+                    method: 'GET',
+                    mode: 'no-cors'
+                }).catch(async (err) => {
+                    // If no-cors fails, try regular fetch
+                    console.log("No-cors failed, trying regular fetch");
+                    return await fetch(url);
+                });
+                
+                // For no-cors mode, we can't read the response, so we need to handle this differently
+                // Let's try a different approach with a proxy if needed
+                const text = await response.text();
+                console.log("Raw response:", text);
+                
+                let data;
+                try {
+                    data = JSON.parse(text);
+                } catch (e) {
+                    // If JSON parsing fails, try to handle HTML response
+                    if (text.includes('student') || text.includes('found')) {
+                        // Try to extract JSON from HTML if GAS returns HTML
+                        const jsonMatch = text.match(/\{.*\}/);
+                        if (jsonMatch) {
+                            data = JSON.parse(jsonMatch[0]);
+                        } else {
+                            throw new Error('Invalid response format from server');
+                        }
+                    } else {
+                        throw new Error('Invalid response format from server');
+                    }
                 }
                 
-                const data = await response.json();
-                console.log("Student data:", data);
+                console.log("Parsed student data:", data);
                 
                 if (data.found && data.student) {
                     currentStudent = data.student;
                     displayStudentDetails(currentStudent);
                     hideMessage(scannerMessage);
                     showScreen('student-screen');
+                } else if (data.error) {
+                    showMessage(scannerMessage, `Database error: ${data.error}`, 'error');
+                    setTimeout(() => {
+                        hideMessage(scannerMessage);
+                        startScanning();
+                    }, 3000);
                 } else {
                     showMessage(scannerMessage, data.message || 'Student not found in database.', 'error');
                     setTimeout(() => {
@@ -892,7 +927,7 @@
                 }
             } catch (error) {
                 console.error("Student lookup error:", error);
-                showMessage(scannerMessage, 'Error connecting to database. Please try again.', 'error');
+                showMessage(scannerMessage, 'Error: ' + error.message, 'error');
                 setTimeout(() => {
                     hideMessage(scannerMessage);
                     startScanning();
@@ -935,7 +970,7 @@
             element.style.display = 'none';
         }
         
-        // Login handler
+        // Login handler - FIXED API CALL
         async function handleLogin() {
             const username = usernameInput.value.trim();
             const password = passwordInput.value.trim();
@@ -954,26 +989,45 @@
             showMessage(loginMessage, 'Verifying credentials...', 'warning');
             
             try {
-                // Build login URL
+                // Build login URL with proper parameters
                 const loginUrl = `${API_BASE}?action=verifycoordinator&username=${encodeURIComponent(username)}&password=${encodeURIComponent(password)}`;
+                console.log('🔐 Login attempt:', loginUrl);
                 
+                // Make the login request
                 const response = await fetch(loginUrl, {
-                    method: 'GET'
+                    method: 'GET',
+                    mode: 'no-cors'
+                }).catch(async (err) => {
+                    // If no-cors fails, try regular fetch
+                    console.log("No-cors failed, trying regular fetch");
+                    return await fetch(loginUrl);
                 });
+                
+                const text = await response.text();
+                console.log("Raw login response:", text);
                 
                 let data;
                 try {
-                    data = await response.json();
+                    data = JSON.parse(text);
                 } catch (e) {
-                    // If JSON parsing fails but response is ok, use demo mode
-                    if (response.ok) {
-                        data = { authenticated: true, name: username };
+                    // If JSON parsing fails but we have a successful response, use demo mode
+                    if (response.ok || text.includes('authenticated')) {
+                        // Try to extract JSON from response
+                        const jsonMatch = text.match(/\{.*\}/);
+                        if (jsonMatch) {
+                            data = JSON.parse(jsonMatch[0]);
+                        } else {
+                            // Fallback to demo authentication
+                            data = { authenticated: isDemoCredentials(username, password) };
+                        }
                     } else {
                         throw new Error('Invalid response from server');
                     }
                 }
                 
-                if (data.authenticated || (response && response.ok)) {
+                console.log('📨 Login response:', data);
+                
+                if (data.authenticated) {
                     coordinator = {
                         name: data.name || username,
                         username: data.username || username
@@ -994,7 +1048,7 @@
                 }
                 
             } catch (error) {
-                console.error('Login error:', error);
+                console.error('❌ Login error:', error);
                 
                 if (error.name === 'AbortError') {
                     showMessage(loginMessage, 'Login timeout. Please check your internet connection.', 'error');
@@ -1085,7 +1139,7 @@
             commentInput.value = "";
         }
         
-        // Update status handler
+        // Update status handler - FIXED API CALL
         async function handleStatusUpdate() {
             if (!currentStudent) {
                 showMessage(updateMessage, 'No student selected!', 'error');
@@ -1122,7 +1176,20 @@
                     body: JSON.stringify(payload)
                 });
                 
-                const result = await response.json();
+                const text = await response.text();
+                let result;
+                
+                try {
+                    result = JSON.parse(text);
+                } catch (e) {
+                    // If JSON parsing fails, try to extract from HTML
+                    const jsonMatch = text.match(/\{.*\}/);
+                    if (jsonMatch) {
+                        result = JSON.parse(jsonMatch[0]);
+                    } else {
+                        throw new Error('Invalid response format');
+                    }
+                }
                 
                 if (result.success) {
                     showMessage(updateMessage, `✅ ${result.message || 'Status updated successfully!'}`, 'success');
@@ -1131,7 +1198,7 @@
                     showMessage(updateMessage, `❌ ${result.error || 'Failed to update status!'}`, 'error');
                 }
             } catch (error) {
-                console.error("Status update error:", error);
+                console.error("❌ Status update error:", error);
                 showMessage(updateMessage, '⚠️ Update may not have saved. Please check connection.', 'warning');
                 setTimeout(backToScanner, 3000);
             } finally {

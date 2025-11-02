@@ -327,6 +327,25 @@
             margin: 25px auto 0;
         }
         
+        .camera-permission {
+            padding: 20px;
+            background: #fff3e0;
+            border-radius: 12px;
+            margin-bottom: 20px;
+            text-align: center;
+            border: 2px solid #ff9800;
+        }
+        
+        .camera-permission h3 {
+            color: #ef6c00;
+            margin-bottom: 10px;
+        }
+        
+        .camera-permission button {
+            max-width: 250px;
+            margin: 10px auto;
+        }
+        
         /* Mobile-specific optimizations */
         @media (max-width: 480px) {
             body {
@@ -450,6 +469,13 @@
                 <h2 style="text-align: center; margin-bottom: 20px; color: #333;">QR Code Scanner</h2>
                 <p style="text-align: center; margin-bottom: 20px; color: #666;">Point camera at student QR code</p>
                 
+                <div id="camera-permission-prompt" class="camera-permission" style="display: none;">
+                    <h3>Camera Permission Required</h3>
+                    <p>To scan QR codes, we need access to your camera.</p>
+                    <button id="enable-camera-btn">Enable Camera</button>
+                    <p style="font-size: 0.85rem; margin-top: 10px;">If you've previously denied permission, please allow camera access in your browser settings.</p>
+                </div>
+                
                 <div class="scanner-container">
                     <div id="qr-reader"></div>
                 </div>
@@ -542,6 +568,7 @@
         let currentStudent = null;
         let selectedStatus = "";
         let html5QrCode = null;
+        let cameraPermissionGranted = false;
         
         // DOM Elements
         const loginScreen = document.getElementById('login-screen');
@@ -554,6 +581,9 @@
         const loginText = document.getElementById('login-text');
         const loginLoading = document.getElementById('login-loading');
         const logoutBtn = document.getElementById('logout-btn');
+        
+        const cameraPermissionPrompt = document.getElementById('camera-permission-prompt');
+        const enableCameraBtn = document.getElementById('enable-camera-btn');
         
         const studentId = document.getElementById('student-id');
         const studentName = document.getElementById('student-name');
@@ -589,6 +619,7 @@
         logoutBtn.addEventListener('click', handleLogout);
         updateStatusBtn.addEventListener('click', handleStatusUpdate);
         backToScannerBtn.addEventListener('click', backToScanner);
+        enableCameraBtn.addEventListener('click', requestCameraPermission);
         
         // Enter key support
         passwordInput.addEventListener('keypress', function(e) {
@@ -614,7 +645,7 @@
                 try {
                     coordinator = JSON.parse(savedCoordinator);
                     showScreen('scanner-screen');
-                    setTimeout(initializeScanner, 100);
+                    checkCameraPermission();
                 } catch (e) {
                     sessionStorage.removeItem('freshers_coordinator');
                     showScreen('login-screen');
@@ -631,6 +662,69 @@
             }, 500);
         }
         
+        // Check camera permission status
+        async function checkCameraPermission() {
+            try {
+                // Check if we already have permission
+                const stream = await navigator.mediaDevices.getUserMedia({ video: true });
+                // If we get here, permission is granted
+                cameraPermissionGranted = true;
+                cameraPermissionPrompt.style.display = 'none';
+                // Stop the stream immediately since we just wanted to check permission
+                stream.getTracks().forEach(track => track.stop());
+                // Initialize the scanner
+                setTimeout(initializeScanner, 100);
+            } catch (err) {
+                console.log('Camera permission not granted:', err);
+                cameraPermissionGranted = false;
+                cameraPermissionPrompt.style.display = 'block';
+                showMessage(scannerMessage, 'Camera access is required to scan QR codes.', 'warning');
+            }
+        }
+        
+        // Request camera permission explicitly
+        async function requestCameraPermission() {
+            try {
+                showMessage(scannerMessage, 'Requesting camera permission...', 'warning');
+                
+                const stream = await navigator.mediaDevices.getUserMedia({ 
+                    video: { 
+                        facingMode: "environment",
+                        width: { ideal: 1280 },
+                        height: { ideal: 720 }
+                    } 
+                });
+                
+                // Permission granted
+                cameraPermissionGranted = true;
+                cameraPermissionPrompt.style.display = 'none';
+                hideMessage(scannerMessage);
+                
+                // Stop the test stream
+                stream.getTracks().forEach(track => track.stop());
+                
+                // Initialize the scanner
+                initializeScanner();
+                
+            } catch (err) {
+                console.error('Camera permission denied:', err);
+                cameraPermissionGranted = false;
+                
+                let errorMessage = 'Camera access denied. ';
+                if (err.name === 'NotAllowedError') {
+                    errorMessage += 'Please allow camera access in your browser settings and refresh the page.';
+                } else if (err.name === 'NotFoundError') {
+                    errorMessage += 'No camera found on this device.';
+                } else if (err.name === 'NotSupportedError') {
+                    errorMessage += 'Camera not supported in this browser.';
+                } else {
+                    errorMessage += 'Please check your camera settings.';
+                }
+                
+                showMessage(scannerMessage, errorMessage, 'error');
+            }
+        }
+        
         // Screen management
         function showScreen(screenId) {
             [loginScreen, scannerScreen, studentScreen].forEach(screen => {
@@ -642,6 +736,11 @@
             hideMessage(loginMessage);
             hideMessage(scannerMessage);
             hideMessage(updateMessage);
+            
+            // Check camera permission when showing scanner screen
+            if (screenId === 'scanner-screen' && !cameraPermissionGranted) {
+                setTimeout(checkCameraPermission, 300);
+            }
         }
         
         // Message display functions
@@ -675,13 +774,6 @@
             showMessage(loginMessage, 'Verifying credentials...', 'warning');
             
             try {
-                // Test the API connection first
-                const testUrl = `${API_URL}?action=ping`;
-                const testResponse = await fetch(testUrl, { 
-                    method: 'GET',
-                    mode: 'no-cors'
-                }).catch(() => null);
-                
                 // Build login URL
                 const loginUrl = `${API_URL}?action=verifycoordinator&username=${encodeURIComponent(username)}&password=${encodeURIComponent(password)}`;
                 console.log('🔐 Login attempt:', loginUrl);
@@ -718,7 +810,7 @@
                     setTimeout(() => {
                         hideMessage(loginMessage);
                         showScreen('scanner-screen');
-                        initializeScanner();
+                        checkCameraPermission();
                     }, 1500);
                     
                 } else {
@@ -746,7 +838,7 @@
                         sessionStorage.setItem('freshers_coordinator', JSON.stringify(coordinator));
                         hideMessage(loginMessage);
                         showScreen('scanner-screen');
-                        initializeScanner();
+                        checkCameraPermission();
                     }, 1000);
                 }
             } finally {
@@ -778,6 +870,7 @@
             coordinator = null;
             currentStudent = null;
             selectedStatus = "";
+            cameraPermissionGranted = false;
             sessionStorage.removeItem('freshers_coordinator');
             
             // Reset forms
@@ -793,6 +886,12 @@
         
         // Initialize QR scanner
         function initializeScanner() {
+            if (!cameraPermissionGranted) {
+                showMessage(scannerMessage, 'Camera permission not granted. Please enable camera access.', 'error');
+                cameraPermissionPrompt.style.display = 'block';
+                return;
+            }
+            
             if (html5QrCode) {
                 html5QrCode.stop().catch(() => {});
             }
@@ -802,7 +901,8 @@
             const config = { 
                 fps: 10, 
                 qrbox: { width: 250, height: 250 },
-                aspectRatio: 1.0
+                aspectRatio: 1.0,
+                supportedScanTypes: [Html5QrcodeScanType.SCAN_TYPE_QR_CODE]
             };
             
             html5QrCode.start(
@@ -816,9 +916,15 @@
                 setTimeout(() => hideMessage(scannerMessage), 3000);
             }).catch(err => {
                 console.error("❌ Scanner error:", err);
-                let errorMsg = "Camera access denied. ";
+                let errorMsg = "Failed to start camera. ";
                 if (err.message.includes('NotAllowedError')) {
-                    errorMsg += "Please allow camera permissions and refresh.";
+                    errorMsg += "Camera permission denied. Please allow camera access.";
+                    cameraPermissionGranted = false;
+                    cameraPermissionPrompt.style.display = 'block';
+                } else if (err.message.includes('NotFoundError')) {
+                    errorMsg += "No camera found on this device.";
+                } else if (err.message.includes('NotSupportedError')) {
+                    errorMsg += "Camera not supported in this browser.";
                 } else {
                     errorMsg += "Please check camera permissions and try again.";
                 }
@@ -873,6 +979,13 @@
         // QR scan failure handler
         function onScanFailure(error) {
             // Silent failure - most errors are just "no QR code in view"
+            // Only show error if it's not the common "no QR code found" error
+            if (!error || 
+                (typeof error === 'string' && error.includes('No MultiFormat Readers')) ||
+                (error.message && error.message.includes('No MultiFormat Readers'))) {
+                return;
+            }
+            console.log("Scan failure (non-critical):", error);
         }
         
         // Display student details

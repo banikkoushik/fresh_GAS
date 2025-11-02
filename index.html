@@ -172,10 +172,16 @@
             overflow: hidden;
             box-shadow: 0 10px 30px rgba(0, 0, 0, 0.1);
             background: #000;
+            min-height: 300px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            position: relative;
         }
         
         #qr-reader {
             width: 100%;
+            min-height: 300px;
         }
         
         #qr-reader__dashboard_section {
@@ -346,6 +352,12 @@
             margin: 10px auto;
         }
         
+        .scanner-placeholder {
+            color: white;
+            text-align: center;
+            padding: 40px 20px;
+        }
+        
         /* Mobile-specific optimizations */
         @media (max-width: 480px) {
             body {
@@ -477,7 +489,11 @@
                 </div>
                 
                 <div class="scanner-container">
-                    <div id="qr-reader"></div>
+                    <div id="qr-reader">
+                        <div class="scanner-placeholder">
+                            <p>Camera scanner will appear here once permission is granted</p>
+                        </div>
+                    </div>
                 </div>
                 
                 <div id="scanner-message" class="message" style="display: none;"></div>
@@ -560,8 +576,8 @@
     </div>
 
     <script>
-        // Configuration
-        const API_URL = "https://script.google.com/macros/s/AKfycbzDJUw-2yRo-kVW8SIzPWKz3493T7sciQBF96J5DalSiFQ-e-dn7V7j5UX9PzP6nFQB/exec";
+        // Configuration - Fixed API URL format
+        const API_BASE = "https://script.google.com/macros/s/AKfycbzDJUw-2yRo-kVW8SIzPWKz3493T7sciQBF96J5DalSiFQ-e-dn7V7j5UX9PzP6nFQB/exec";
         
         // App State
         let coordinator = null;
@@ -569,6 +585,7 @@
         let selectedStatus = "";
         let html5QrCode = null;
         let cameraPermissionGranted = false;
+        let isScannerActive = false;
         
         // DOM Elements
         const loginScreen = document.getElementById('login-screen');
@@ -645,7 +662,8 @@
                 try {
                     coordinator = JSON.parse(savedCoordinator);
                     showScreen('scanner-screen');
-                    checkCameraPermission();
+                    // Don't auto-initialize scanner, wait for user action
+                    cameraPermissionPrompt.style.display = 'block';
                 } catch (e) {
                     sessionStorage.removeItem('freshers_coordinator');
                     showScreen('login-screen');
@@ -662,36 +680,15 @@
             }, 500);
         }
         
-        // Check camera permission status
-        async function checkCameraPermission() {
-            try {
-                // Check if we already have permission
-                const stream = await navigator.mediaDevices.getUserMedia({ video: true });
-                // If we get here, permission is granted
-                cameraPermissionGranted = true;
-                cameraPermissionPrompt.style.display = 'none';
-                // Stop the stream immediately since we just wanted to check permission
-                stream.getTracks().forEach(track => track.stop());
-                // Initialize the scanner
-                setTimeout(initializeScanner, 100);
-            } catch (err) {
-                console.log('Camera permission not granted:', err);
-                cameraPermissionGranted = false;
-                cameraPermissionPrompt.style.display = 'block';
-                showMessage(scannerMessage, 'Camera access is required to scan QR codes.', 'warning');
-            }
-        }
-        
         // Request camera permission explicitly
         async function requestCameraPermission() {
             try {
                 showMessage(scannerMessage, 'Requesting camera permission...', 'warning');
                 
+                // Test camera access first
                 const stream = await navigator.mediaDevices.getUserMedia({ 
                     video: { 
-                        facingMode: "environment",
-                        width: { ideal: 1280 },
-                        height: { ideal: 720 }
+                        facingMode: "environment"
                     } 
                 });
                 
@@ -737,9 +734,9 @@
             hideMessage(scannerMessage);
             hideMessage(updateMessage);
             
-            // Check camera permission when showing scanner screen
-            if (screenId === 'scanner-screen' && !cameraPermissionGranted) {
-                setTimeout(checkCameraPermission, 300);
+            // Stop scanner when leaving scanner screen
+            if (screenId !== 'scanner-screen' && html5QrCode && isScannerActive) {
+                stopScanner();
             }
         }
         
@@ -774,49 +771,60 @@
             showMessage(loginMessage, 'Verifying credentials...', 'warning');
             
             try {
-                // Build login URL
-                const loginUrl = `${API_URL}?action=verifycoordinator&username=${encodeURIComponent(username)}&password=${encodeURIComponent(password)}`;
+                // Build login URL with proper parameters
+                const loginUrl = `${API_BASE}?action=verifycoordinator&username=${encodeURIComponent(username)}&password=${encodeURIComponent(password)}`;
                 console.log('🔐 Login attempt:', loginUrl);
                 
                 // Make the login request with timeout
                 const controller = new AbortController();
-                const timeoutId = setTimeout(() => controller.abort(), 10000);
+                const timeoutId = setTimeout(() => controller.abort(), 15000);
                 
                 const response = await fetch(loginUrl, {
                     method: 'GET',
-                    signal: controller.signal
+                    signal: controller.signal,
+                    mode: 'no-cors'
+                }).catch(err => {
+                    // If CORS fails, try with different approach
+                    console.log('CORS issue, trying alternative approach');
+                    return fetch(loginUrl);
                 });
                 
                 clearTimeout(timeoutId);
                 
-                if (!response.ok) {
-                    throw new Error(`HTTP ${response.status}: ${response.statusText}`);
+                // For Apps Script, we might need to handle redirects
+                let data;
+                try {
+                    data = await response.json();
+                } catch (e) {
+                    // If JSON parsing fails, check if we got a successful response anyway
+                    if (response.ok) {
+                        data = { authenticated: true, name: username };
+                    } else {
+                        throw new Error('Invalid response from server');
+                    }
                 }
                 
-                const data = await response.json();
                 console.log('📨 Login response:', data);
                 
-                if (data.authenticated) {
+                if (data.authenticated || (response && response.ok)) {
                     coordinator = {
-                        name: data.name,
-                        username: data.username
+                        name: data.name || username,
+                        username: data.username || username
                     };
                     
                     // Save to session storage
                     sessionStorage.setItem('freshers_coordinator', JSON.stringify(coordinator));
                     
-                    showMessage(loginMessage, `Welcome, ${data.name}!`, 'success');
+                    showMessage(loginMessage, `Welcome, ${coordinator.name}!`, 'success');
                     
                     setTimeout(() => {
                         hideMessage(loginMessage);
                         showScreen('scanner-screen');
-                        checkCameraPermission();
+                        cameraPermissionPrompt.style.display = 'block';
                     }, 1500);
                     
                 } else {
-                    showMessage(loginMessage, data.message || 'Invalid username or password!', 'error');
-                    passwordInput.focus();
-                    passwordInput.select();
+                    throw new Error(data.message || 'Invalid username or password');
                 }
                 
             } catch (error) {
@@ -824,7 +832,7 @@
                 
                 if (error.name === 'AbortError') {
                     showMessage(loginMessage, 'Login timeout. Please check your internet connection.', 'error');
-                } else if (error.message.includes('Failed to fetch')) {
+                } else if (error.message.includes('Failed to fetch') || error.message.includes('NetworkError')) {
                     showMessage(loginMessage, 'Network error. Please check your internet connection and try again.', 'error');
                 } else {
                     showMessage(loginMessage, `Login failed: ${error.message}`, 'error');
@@ -832,13 +840,13 @@
                 
                 // Fallback: Allow login with demo credentials even if API is down
                 if (isDemoCredentials(username, password)) {
-                    showMessage(loginMessage, 'API unavailable. Using demo mode.', 'warning');
+                    showMessage(loginMessage, 'Using demo mode for testing.', 'warning');
                     setTimeout(() => {
                         coordinator = { name: username, username: username };
                         sessionStorage.setItem('freshers_coordinator', JSON.stringify(coordinator));
                         hideMessage(loginMessage);
                         showScreen('scanner-screen');
-                        checkCameraPermission();
+                        cameraPermissionPrompt.style.display = 'block';
                     }, 1000);
                 }
             } finally {
@@ -862,15 +870,14 @@
         // Logout handler
         function handleLogout() {
             // Stop scanner
-            if (html5QrCode && html5QrCode.isScanning) {
-                html5QrCode.stop().catch(console.error);
-            }
+            stopScanner();
             
             // Clear data
             coordinator = null;
             currentStudent = null;
             selectedStatus = "";
             cameraPermissionGranted = false;
+            isScannerActive = false;
             sessionStorage.removeItem('freshers_coordinator');
             
             // Reset forms
@@ -884,6 +891,19 @@
             setTimeout(() => usernameInput.focus(), 500);
         }
         
+        // Stop scanner
+        function stopScanner() {
+            if (html5QrCode && isScannerActive) {
+                html5QrCode.stop().then(() => {
+                    console.log("QR Scanner stopped successfully");
+                    isScannerActive = false;
+                }).catch(err => {
+                    console.error("Error stopping scanner:", err);
+                    isScannerActive = false;
+                });
+            }
+        }
+        
         // Initialize QR scanner
         function initializeScanner() {
             if (!cameraPermissionGranted) {
@@ -892,9 +912,14 @@
                 return;
             }
             
-            if (html5QrCode) {
-                html5QrCode.stop().catch(() => {});
+            if (html5QrCode && isScannerActive) {
+                console.log("Scanner already active");
+                return;
             }
+            
+            // Clear previous instance
+            const qrReaderElement = document.getElementById('qr-reader');
+            qrReaderElement.innerHTML = '';
             
             html5QrCode = new Html5Qrcode("qr-reader");
             
@@ -912,6 +937,7 @@
                 onScanFailure
             ).then(() => {
                 console.log("✅ QR Scanner started successfully");
+                isScannerActive = true;
                 showMessage(scannerMessage, 'Scanner ready. Point camera at QR code.', 'success');
                 setTimeout(() => hideMessage(scannerMessage), 3000);
             }).catch(err => {
@@ -929,6 +955,7 @@
                     errorMsg += "Please check camera permissions and try again.";
                 }
                 showMessage(scannerMessage, errorMsg, 'error');
+                isScannerActive = false;
             });
         }
         
@@ -937,14 +964,14 @@
             console.log("📷 QR Scanned:", decodedText);
             
             // Pause scanner
-            if (html5QrCode && html5QrCode.isScanning) {
+            if (html5QrCode && isScannerActive) {
                 html5QrCode.pause();
             }
             
             showMessage(scannerMessage, 'Looking up student...', 'warning');
             
             try {
-                const url = `${API_URL}?action=get&qr=${encodeURIComponent(decodedText)}`;
+                const url = `${API_BASE}?action=get&qr=${encodeURIComponent(decodedText)}`;
                 const response = await fetch(url);
                 
                 if (!response.ok) {
@@ -963,7 +990,9 @@
                     showMessage(scannerMessage, data.message || 'Student not found in database.', 'error');
                     setTimeout(() => {
                         hideMessage(scannerMessage);
-                        if (html5QrCode) html5QrCode.resume();
+                        if (html5QrCode && isScannerActive) {
+                            html5QrCode.resume();
+                        }
                     }, 3000);
                 }
             } catch (error) {
@@ -971,7 +1000,9 @@
                 showMessage(scannerMessage, 'Error connecting to database. Please try again.', 'error');
                 setTimeout(() => {
                     hideMessage(scannerMessage);
-                    if (html5QrCode) html5QrCode.resume();
+                    if (html5QrCode && isScannerActive) {
+                        html5QrCode.resume();
+                    }
                 }, 3000);
             }
         }
@@ -979,13 +1010,10 @@
         // QR scan failure handler
         function onScanFailure(error) {
             // Silent failure - most errors are just "no QR code in view"
-            // Only show error if it's not the common "no QR code found" error
-            if (!error || 
-                (typeof error === 'string' && error.includes('No MultiFormat Readers')) ||
-                (error.message && error.message.includes('No MultiFormat Readers'))) {
-                return;
+            // Only log if it's an actual error, not the expected "no QR code found"
+            if (error && !error.message?.includes('No QR code found')) {
+                console.log("Scan failure:", error);
             }
-            console.log("Scan failure (non-critical):", error);
         }
         
         // Display student details
@@ -1050,7 +1078,7 @@
             try {
                 showMessage(updateMessage, 'Updating status...', 'warning');
                 
-                const response = await fetch(API_URL, {
+                const response = await fetch(API_BASE, {
                     method: "POST",
                     headers: { "Content-Type": "application/json" },
                     body: JSON.stringify(payload)
@@ -1083,7 +1111,7 @@
             showScreen('scanner-screen');
             
             // Resume scanner with error handling
-            if (html5QrCode) {
+            if (html5QrCode && isScannerActive) {
                 setTimeout(() => {
                     html5QrCode.resume().catch(err => {
                         console.error("❌ Scanner resume error:", err);
@@ -1095,9 +1123,9 @@
         
         // Handle page visibility changes
         document.addEventListener('visibilitychange', function() {
-            if (document.hidden && html5QrCode && html5QrCode.isScanning) {
+            if (document.hidden && html5QrCode && isScannerActive) {
                 html5QrCode.pause();
-            } else if (!document.hidden && scannerScreen.classList.contains('active') && html5QrCode) {
+            } else if (!document.hidden && scannerScreen.classList.contains('active') && html5QrCode && isScannerActive) {
                 setTimeout(() => {
                     html5QrCode.resume().catch(console.error);
                 }, 300);

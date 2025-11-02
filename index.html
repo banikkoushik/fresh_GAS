@@ -524,6 +524,12 @@
                     <h3>Camera Access Required</h3>
                     <p>Click the button below to enable camera and start scanning</p>
                     <button id="enable-camera-btn">Start Camera</button>
+                    <p style="font-size: 0.85rem; margin-top: 15px; color: #666;">
+                        <strong>Troubleshooting:</strong><br>
+                        • Allow camera permissions when prompted<br>
+                        • Ensure no other app is using the camera<br>
+                        • Try refreshing the page if camera doesn't start
+                    </p>
                 </div>
                 
                 <div class="camera-controls" style="display: none;" id="camera-controls">
@@ -630,6 +636,8 @@
         let currentFacingMode = "environment";
         let isScanning = false;
         let scanInterval = null;
+        let cameras = [];
+        let currentCameraIndex = 0;
         
         // DOM Elements
         const loginScreen = document.getElementById('login-screen');
@@ -716,6 +724,8 @@
                 try {
                     coordinator = JSON.parse(savedCoordinator);
                     showScreen('scanner-screen');
+                // Check if we can access camera devices
+                    checkCameraAvailability();
                 } catch (e) {
                     sessionStorage.removeItem('freshers_coordinator');
                     showScreen('login-screen');
@@ -732,7 +742,31 @@
             }, 500);
         }
         
-        // Start camera with jsQR
+        // Check camera availability
+        async function checkCameraAvailability() {
+            try {
+                // Check if we can enumerate devices
+                if (!navigator.mediaDevices || !navigator.mediaDevices.enumerateDevices) {
+                    console.log("Camera enumeration not supported");
+                    return;
+                }
+                
+                const devices = await navigator.mediaDevices.enumerateDevices();
+                cameras = devices.filter(device => device.kind === 'videoinput');
+                console.log(`Found ${cameras.length} camera(s)`);
+                
+                if (cameras.length > 0) {
+                    // Update button text if multiple cameras
+                    if (cameras.length > 1) {
+                        switchCameraBtn.textContent = `Switch Camera (${cameras.length})`;
+                    }
+                }
+            } catch (err) {
+                console.error("Error checking cameras:", err);
+            }
+        }
+        
+        // Start camera with jsQR - COMPLETELY REWRITTEN
         async function startCamera() {
             try {
                 showMessage(scannerMessage, 'Starting camera...', 'warning');
@@ -742,60 +776,173 @@
                     cameraStream.getTracks().forEach(track => track.stop());
                 }
                 
-                // Get camera stream
-                cameraStream = await navigator.mediaDevices.getUserMedia({
-                    video: {
-                        facingMode: currentFacingMode,
-                        width: { ideal: 1280 },
-                        height: { ideal: 720 }
+                // Try different camera constraints in order of preference
+                const constraintsToTry = [
+                    // Try rear camera first
+                    {
+                        video: {
+                            facingMode: { ideal: "environment" },
+                            width: { ideal: 1280 },
+                            height: { ideal: 720 }
+                        }
+                    },
+                    // Try any camera with specific resolution
+                    {
+                        video: {
+                            width: { ideal: 1280 },
+                            height: { ideal: 720 }
+                        }
+                    },
+                    // Try any camera with basic constraints
+                    {
+                        video: true
                     }
-                });
+                ];
+                
+                let stream = null;
+                let lastError = null;
+                
+                // Try each constraint set until one works
+                for (const constraints of constraintsToTry) {
+                    try {
+                        console.log("Trying constraints:", constraints);
+                        stream = await navigator.mediaDevices.getUserMedia(constraints);
+                        break; // Success, exit loop
+                    } catch (err) {
+                        lastError = err;
+                        console.log("Camera constraint failed:", constraints, err);
+                        continue; // Try next constraint
+                    }
+                }
+                
+                if (!stream) {
+                    throw lastError || new Error("All camera constraints failed");
+                }
+                
+                cameraStream = stream;
                 
                 // Set video source
                 videoElement.srcObject = cameraStream;
                 
-                // Wait for video to load
-                videoElement.onloadedmetadata = function() {
-                    // Set canvas dimensions to match video
-                    canvasElement.width = videoElement.videoWidth;
-                    canvasElement.height = videoElement.videoHeight;
+                // Wait for video to be ready
+                return new Promise((resolve) => {
+                    videoElement.onloadedmetadata = function() {
+                        // Set canvas dimensions to match video
+                        const videoWidth = videoElement.videoWidth;
+                        const videoHeight = videoElement.videoHeight;
+                        
+                        // Ensure minimum dimensions
+                        canvasElement.width = Math.max(videoWidth, 640);
+                        canvasElement.height = Math.max(videoHeight, 480);
+                        
+                        // Hide permission prompt, show scanner and controls
+                        cameraPermissionPrompt.style.display = 'none';
+                        scannerContainer.style.display = 'flex';
+                        cameraControls.style.display = 'flex';
+                        
+                        // Start scanning
+                        startScanning();
+                        
+                        showMessage(scannerMessage, 'Camera started successfully!', 'success');
+                        setTimeout(() => hideMessage(scannerMessage), 3000);
+                        
+                        resolve();
+                    };
                     
-                    // Hide permission prompt, show scanner and controls
-                    cameraPermissionPrompt.style.display = 'none';
-                    scannerContainer.style.display = 'flex';
-                    cameraControls.style.display = 'flex';
+                    videoElement.onerror = function() {
+                        throw new Error("Video element failed to load");
+                    };
                     
-                    // Start scanning
-                    startScanning();
-                    
-                    showMessage(scannerMessage, 'Camera started. Point at QR code.', 'success');
-                    setTimeout(() => hideMessage(scannerMessage), 3000);
-                };
-                
-                videoElement.play();
+                    // Play the video
+                    videoElement.play().catch(err => {
+                        console.error("Video play error:", err);
+                        // Continue anyway, as the video might still work
+                    });
+                });
                 
             } catch (err) {
                 console.error('Camera error:', err);
                 let errorMessage = 'Failed to access camera. ';
                 
                 if (err.name === 'NotAllowedError') {
-                    errorMessage += 'Please allow camera access and try again.';
+                    errorMessage += 'Camera permission was denied. Please allow camera access in your browser settings and refresh the page.';
                 } else if (err.name === 'NotFoundError') {
                     errorMessage += 'No camera found on this device.';
                 } else if (err.name === 'NotSupportedError') {
                     errorMessage += 'Camera not supported in this browser.';
+                } else if (err.name === 'NotReadableError') {
+                    errorMessage += 'Camera is already in use by another application. Please close other apps using the camera.';
+                } else if (err.name === 'OverconstrainedError') {
+                    errorMessage += 'Camera constraints could not be satisfied. Trying alternative camera...';
+                    // Try again with simpler constraints
+                    setTimeout(() => {
+                        hideMessage(scannerMessage);
+                        startCamera();
+                    }, 2000);
+                    return;
                 } else {
-                    errorMessage += 'Please check your camera settings.';
+                    errorMessage += `Please check your camera settings. Error: ${err.message}`;
                 }
                 
                 showMessage(scannerMessage, errorMessage, 'error');
+                
+                // Show troubleshooting tips
+                cameraPermissionPrompt.innerHTML = `
+                    <h3>Camera Access Required</h3>
+                    <p>${errorMessage}</p>
+                    <button id="enable-camera-btn">Try Again</button>
+                    <p style="font-size: 0.85rem; margin-top: 15px; color: #666;">
+                        <strong>Troubleshooting Tips:</strong><br>
+                        • Allow camera permissions when prompted<br>
+                        • Ensure no other app is using the camera<br>
+                        • Refresh the page and try again<br>
+                        • Check if your camera works in other apps<br>
+                        • Try using a different browser
+                    </p>
+                `;
+                
+                // Reattach event listener to the new button
+                document.getElementById('enable-camera-btn').addEventListener('click', startCamera);
             }
         }
         
-        // Switch between front and back cameras
-        function switchCamera() {
-            currentFacingMode = currentFacingMode === "environment" ? "user" : "environment";
-            startCamera();
+        // Switch between cameras
+        async function switchCamera() {
+            if (cameras.length <= 1) {
+                showMessage(scannerMessage, 'Only one camera available', 'warning');
+                setTimeout(() => hideMessage(scannerMessage), 2000);
+                return;
+            }
+            
+            showMessage(scannerMessage, 'Switching camera...', 'warning');
+            
+            // Stop current stream
+            if (cameraStream) {
+                cameraStream.getTracks().forEach(track => track.stop());
+            }
+            
+            // Cycle to next camera
+            currentCameraIndex = (currentCameraIndex + 1) % cameras.length;
+            const deviceId = cameras[currentCameraIndex].deviceId;
+            
+            try {
+                cameraStream = await navigator.mediaDevices.getUserMedia({
+                    video: { deviceId: { exact: deviceId } }
+                });
+                
+                videoElement.srcObject = cameraStream;
+                
+                showMessage(scannerMessage, `Camera ${currentCameraIndex + 1} activated`, 'success');
+                setTimeout(() => hideMessage(scannerMessage), 2000);
+                
+            } catch (err) {
+                console.error('Camera switch error:', err);
+                showMessage(scannerMessage, 'Failed to switch camera', 'error');
+                setTimeout(() => hideMessage(scannerMessage), 3000);
+                
+                // Fall back to default camera
+                startCamera();
+            }
         }
         
         // Stop camera
@@ -840,30 +987,35 @@
         
         // Scan for QR codes using jsQR
         function scanQRCode() {
-            if (!isScanning || videoElement.readyState !== videoElement.HAVE_ENOUGH_DATA) {
+            if (!isScanning || !videoElement.srcObject || videoElement.readyState !== videoElement.HAVE_ENOUGH_DATA) {
                 return;
             }
             
-            // Draw video frame to canvas
-            canvasContext.drawImage(videoElement, 0, 0, canvasElement.width, canvasElement.height);
-            
-            // Get image data from canvas
-            const imageData = canvasContext.getImageData(0, 0, canvasElement.width, canvasElement.height);
-            
-            // Try to decode QR code
-            const code = jsQR(imageData.data, imageData.width, imageData.height, {
-                inversionAttempts: "dontInvert",
-            });
-            
-            // If QR code found
-            if (code) {
-                console.log("QR Code found:", code.data);
-                stopScanning();
-                handleScannedQR(code.data);
+            try {
+                // Draw video frame to canvas
+                canvasContext.drawImage(videoElement, 0, 0, canvasElement.width, canvasElement.height);
+                
+                // Get image data from canvas
+                const imageData = canvasContext.getImageData(0, 0, canvasElement.width, canvasElement.height);
+                
+                // Try to decode QR code
+                const code = jsQR(imageData.data, imageData.width, imageData.height, {
+                    inversionAttempts: "dontInvert",
+                });
+                
+                // If QR code found
+                if (code) {
+                    console.log("QR Code found:", code.data);
+                    stopScanning();
+                    handleScannedQR(code.data);
+                }
+            } catch (err) {
+                console.error("QR scanning error:", err);
+                // Don't stop scanning for errors, just continue
             }
         }
         
-        // Handle scanned QR code - COMPLETELY REWRITTEN API CALL
+        // Handle scanned QR code
         async function handleScannedQR(qrData) {
             showMessage(scannerMessage, 'QR Code detected. Looking up student...', 'warning');
             
@@ -991,7 +1143,7 @@
             element.style.display = 'none';
         }
         
-        // Login handler - COMPLETELY REWRITTEN API CALL
+        // Login handler
         async function handleLogin() {
             const username = usernameInput.value.trim();
             const password = passwordInput.value.trim();
@@ -1061,6 +1213,7 @@
                     setTimeout(() => {
                         hideMessage(loginMessage);
                         showScreen('scanner-screen');
+                        checkCameraAvailability();
                     }, 1500);
                     
                 } else {
@@ -1072,6 +1225,7 @@
                         setTimeout(() => {
                             hideMessage(loginMessage);
                             showScreen('scanner-screen');
+                            checkCameraAvailability();
                         }, 1500);
                     } else {
                         throw new Error(data.message || 'Invalid username or password');
@@ -1089,6 +1243,7 @@
                     setTimeout(() => {
                         hideMessage(loginMessage);
                         showScreen('scanner-screen');
+                        checkCameraAvailability();
                     }, 1500);
                 } else {
                     if (error.name === 'AbortError') {
@@ -1170,7 +1325,7 @@
             commentInput.value = "";
         }
         
-        // Update status handler - COMPLETELY REWRITTEN API CALL
+        // Update status handler
         async function handleStatusUpdate() {
             if (!currentStudent) {
                 showMessage(updateMessage, 'No student selected!', 'error');

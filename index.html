@@ -4,7 +4,6 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
     <title>Freshers Welcome - QR Check-in</title>
-    <!-- Using jsQR library which is more reliable -->
     <script src="https://cdn.jsdelivr.net/npm/jsqr@1.4.0/dist/jsQR.js"></script>
     <style>
         * {
@@ -416,7 +415,7 @@
             
             input, select, textarea {
                 padding: 14px;
-                font-size: 16px; /* Prevents zoom on iOS */
+                font-size: 16px;
             }
             
             button {
@@ -452,7 +451,6 @@
             }
         }
         
-        /* Loading animation */
         .loading {
             display: inline-block;
             width: 20px;
@@ -468,7 +466,6 @@
             to { transform: rotate(360deg); }
         }
         
-        /* Safe area support for notched phones */
         @supports(padding: max(0px)) {
             .content {
                 padding-left: max(20px, env(safe-area-inset-left));
@@ -524,12 +521,6 @@
                     <h3>Camera Access Required</h3>
                     <p>Click the button below to enable camera and start scanning</p>
                     <button id="enable-camera-btn">Start Camera</button>
-                    <p style="font-size: 0.85rem; margin-top: 15px; color: #666;">
-                        <strong>Troubleshooting:</strong><br>
-                        • Allow camera permissions when prompted<br>
-                        • Ensure no other app is using the camera<br>
-                        • Try refreshing the page if camera doesn't start
-                    </p>
                 </div>
                 
                 <div class="camera-controls" style="display: none;" id="camera-controls">
@@ -626,7 +617,7 @@
 
     <script>
         // Configuration - Using your GAS deployment URL
-        const API_BASE = "https://script.google.com/macros/s/AKfycbzDJUw-2yRo-kVW8SIzPWKz3493T7sciQBF96J5DalSiFQ-e-dn7V7j5UX9PzP6nFQB/exec";
+        const API_BASE = "https://script.google.com/macros/s/AKfycbzedrPiaBi7Ds36-n8tzA4Qfdw2EYhdTUkfejid1p7T2ecLpgz5GmuNrnKncBAYV0B8/exec";
         
         // App State
         let coordinator = null;
@@ -636,8 +627,6 @@
         let currentFacingMode = "environment";
         let isScanning = false;
         let scanInterval = null;
-        let cameras = [];
-        let currentCameraIndex = 0;
         
         // DOM Elements
         const loginScreen = document.getElementById('login-screen');
@@ -724,8 +713,6 @@
                 try {
                     coordinator = JSON.parse(savedCoordinator);
                     showScreen('scanner-screen');
-                // Check if we can access camera devices
-                    checkCameraAvailability();
                 } catch (e) {
                     sessionStorage.removeItem('freshers_coordinator');
                     showScreen('login-screen');
@@ -742,31 +729,7 @@
             }, 500);
         }
         
-        // Check camera availability
-        async function checkCameraAvailability() {
-            try {
-                // Check if we can enumerate devices
-                if (!navigator.mediaDevices || !navigator.mediaDevices.enumerateDevices) {
-                    console.log("Camera enumeration not supported");
-                    return;
-                }
-                
-                const devices = await navigator.mediaDevices.enumerateDevices();
-                cameras = devices.filter(device => device.kind === 'videoinput');
-                console.log(`Found ${cameras.length} camera(s)`);
-                
-                if (cameras.length > 0) {
-                    // Update button text if multiple cameras
-                    if (cameras.length > 1) {
-                        switchCameraBtn.textContent = `Switch Camera (${cameras.length})`;
-                    }
-                }
-            } catch (err) {
-                console.error("Error checking cameras:", err);
-            }
-        }
-        
-        // Start camera with jsQR - COMPLETELY REWRITTEN
+        // Start camera with jsQR
         async function startCamera() {
             try {
                 showMessage(scannerMessage, 'Starting camera...', 'warning');
@@ -776,9 +739,8 @@
                     cameraStream.getTracks().forEach(track => track.stop());
                 }
                 
-                // Try different camera constraints in order of preference
+                // Try different camera constraints
                 const constraintsToTry = [
-                    // Try rear camera first
                     {
                         video: {
                             facingMode: { ideal: "environment" },
@@ -786,14 +748,12 @@
                             height: { ideal: 720 }
                         }
                     },
-                    // Try any camera with specific resolution
                     {
                         video: {
                             width: { ideal: 1280 },
                             height: { ideal: 720 }
                         }
                     },
-                    // Try any camera with basic constraints
                     {
                         video: true
                     }
@@ -802,16 +762,15 @@
                 let stream = null;
                 let lastError = null;
                 
-                // Try each constraint set until one works
                 for (const constraints of constraintsToTry) {
                     try {
                         console.log("Trying constraints:", constraints);
                         stream = await navigator.mediaDevices.getUserMedia(constraints);
-                        break; // Success, exit loop
+                        break;
                     } catch (err) {
                         lastError = err;
                         console.log("Camera constraint failed:", constraints, err);
-                        continue; // Try next constraint
+                        continue;
                     }
                 }
                 
@@ -824,23 +783,18 @@
                 // Set video source
                 videoElement.srcObject = cameraStream;
                 
-                // Wait for video to be ready
                 return new Promise((resolve) => {
                     videoElement.onloadedmetadata = function() {
-                        // Set canvas dimensions to match video
                         const videoWidth = videoElement.videoWidth;
                         const videoHeight = videoElement.videoHeight;
                         
-                        // Ensure minimum dimensions
                         canvasElement.width = Math.max(videoWidth, 640);
                         canvasElement.height = Math.max(videoHeight, 480);
                         
-                        // Hide permission prompt, show scanner and controls
                         cameraPermissionPrompt.style.display = 'none';
                         scannerContainer.style.display = 'flex';
                         cameraControls.style.display = 'flex';
                         
-                        // Start scanning
                         startScanning();
                         
                         showMessage(scannerMessage, 'Camera started successfully!', 'success');
@@ -853,10 +807,8 @@
                         throw new Error("Video element failed to load");
                     };
                     
-                    // Play the video
                     videoElement.play().catch(err => {
                         console.error("Video play error:", err);
-                        // Continue anyway, as the video might still work
                     });
                 });
                 
@@ -874,7 +826,6 @@
                     errorMessage += 'Camera is already in use by another application. Please close other apps using the camera.';
                 } else if (err.name === 'OverconstrainedError') {
                     errorMessage += 'Camera constraints could not be satisfied. Trying alternative camera...';
-                    // Try again with simpler constraints
                     setTimeout(() => {
                         hideMessage(scannerMessage);
                         startCamera();
@@ -886,7 +837,6 @@
                 
                 showMessage(scannerMessage, errorMessage, 'error');
                 
-                // Show troubleshooting tips
                 cameraPermissionPrompt.innerHTML = `
                     <h3>Camera Access Required</h3>
                     <p>${errorMessage}</p>
@@ -901,48 +851,14 @@
                     </p>
                 `;
                 
-                // Reattach event listener to the new button
                 document.getElementById('enable-camera-btn').addEventListener('click', startCamera);
             }
         }
         
         // Switch between cameras
         async function switchCamera() {
-            if (cameras.length <= 1) {
-                showMessage(scannerMessage, 'Only one camera available', 'warning');
-                setTimeout(() => hideMessage(scannerMessage), 2000);
-                return;
-            }
-            
-            showMessage(scannerMessage, 'Switching camera...', 'warning');
-            
-            // Stop current stream
-            if (cameraStream) {
-                cameraStream.getTracks().forEach(track => track.stop());
-            }
-            
-            // Cycle to next camera
-            currentCameraIndex = (currentCameraIndex + 1) % cameras.length;
-            const deviceId = cameras[currentCameraIndex].deviceId;
-            
-            try {
-                cameraStream = await navigator.mediaDevices.getUserMedia({
-                    video: { deviceId: { exact: deviceId } }
-                });
-                
-                videoElement.srcObject = cameraStream;
-                
-                showMessage(scannerMessage, `Camera ${currentCameraIndex + 1} activated`, 'success');
-                setTimeout(() => hideMessage(scannerMessage), 2000);
-                
-            } catch (err) {
-                console.error('Camera switch error:', err);
-                showMessage(scannerMessage, 'Failed to switch camera', 'error');
-                setTimeout(() => hideMessage(scannerMessage), 3000);
-                
-                // Fall back to default camera
-                startCamera();
-            }
+            currentFacingMode = currentFacingMode === "environment" ? "user" : "environment";
+            startCamera();
         }
         
         // Stop camera
@@ -973,7 +889,7 @@
             if (isScanning) return;
             
             isScanning = true;
-            scanInterval = setInterval(scanQRCode, 500); // Scan every 500ms
+            scanInterval = setInterval(scanQRCode, 500);
         }
         
         // Stop QR code scanning
@@ -992,18 +908,14 @@
             }
             
             try {
-                // Draw video frame to canvas
                 canvasContext.drawImage(videoElement, 0, 0, canvasElement.width, canvasElement.height);
                 
-                // Get image data from canvas
                 const imageData = canvasContext.getImageData(0, 0, canvasElement.width, canvasElement.height);
                 
-                // Try to decode QR code
                 const code = jsQR(imageData.data, imageData.width, imageData.height, {
                     inversionAttempts: "dontInvert",
                 });
                 
-                // If QR code found
                 if (code) {
                     console.log("QR Code found:", code.data);
                     stopScanning();
@@ -1011,20 +923,18 @@
                 }
             } catch (err) {
                 console.error("QR scanning error:", err);
-                // Don't stop scanning for errors, just continue
             }
         }
         
-        // Handle scanned QR code
+        // Handle scanned QR code - FIXED: Use the actual QR data to search in spreadsheet
         async function handleScannedQR(qrData) {
             showMessage(scannerMessage, 'QR Code detected. Looking up student...', 'warning');
             
             try {
-                // Use the correct API format for your GAS
+                // Use the scanned QR data directly to search in the spreadsheet
                 const url = `${API_BASE}?action=get&qr=${encodeURIComponent(qrData)}`;
                 console.log("Fetching student data from:", url);
                 
-                // Test the API first with a simple fetch
                 let response;
                 try {
                     // First try with regular fetch
@@ -1037,7 +947,7 @@
                 
                 // Get the response as text first to handle both JSON and HTML
                 const responseText = await response.text();
-                console.log("Raw response:", responseText.substring(0, 200) + "...");
+                console.log("Raw response:", responseText);
                 
                 let data;
                 
@@ -1115,16 +1025,13 @@
             });
             document.getElementById(screenId).classList.add('active');
             
-            // Hide all messages when switching screens
             hideMessage(loginMessage);
             hideMessage(scannerMessage);
             hideMessage(updateMessage);
             
-            // Stop scanning when leaving scanner screen
             if (screenId !== 'scanner-screen') {
                 stopScanning();
             } else {
-                // Resume scanning when returning to scanner
                 if (cameraStream && !isScanning) {
                     startScanning();
                 }
@@ -1154,7 +1061,6 @@
                 return;
             }
             
-            // Show loading state
             loginText.style.display = 'none';
             loginLoading.style.display = 'inline';
             loginBtn.disabled = true;
@@ -1162,11 +1068,9 @@
             showMessage(loginMessage, 'Verifying credentials...', 'warning');
             
             try {
-                // Build login URL with proper parameters
                 const loginUrl = `${API_BASE}?action=verifycoordinator&username=${encodeURIComponent(username)}&password=${encodeURIComponent(password)}`;
                 console.log('🔐 Login attempt:', loginUrl);
                 
-                // Make the login request
                 const response = await fetch(loginUrl);
                 console.log("Login response status:", response.status);
                 
@@ -1175,18 +1079,15 @@
                 
                 let data;
                 
-                // Try to parse as JSON first
                 try {
                     data = JSON.parse(responseText);
                 } catch (jsonError) {
                     console.log("Not valid JSON, checking if it's HTML");
                     
-                    // Check if it's HTML
                     if (responseText.includes('<!DOCTYPE') || responseText.includes('<html') || 
                         responseText.includes('Freshers Welcome API')) {
                         console.log("Detected HTML response from GAS for login");
                         
-                        // For login, we'll use demo mode if credentials match
                         if (isDemoCredentials(username, password)) {
                             data = { authenticated: true, name: username };
                         } else {
@@ -1205,7 +1106,6 @@
                         username: data.username || username
                     };
                     
-                    // Save to session storage
                     sessionStorage.setItem('freshers_coordinator', JSON.stringify(coordinator));
                     
                     showMessage(loginMessage, `Welcome, ${coordinator.name}!`, 'success');
@@ -1213,11 +1113,9 @@
                     setTimeout(() => {
                         hideMessage(loginMessage);
                         showScreen('scanner-screen');
-                        checkCameraAvailability();
                     }, 1500);
                     
                 } else {
-                    // If not authenticated but we have demo credentials, use them
                     if (isDemoCredentials(username, password)) {
                         coordinator = { name: username, username: username };
                         sessionStorage.setItem('freshers_coordinator', JSON.stringify(coordinator));
@@ -1225,7 +1123,6 @@
                         setTimeout(() => {
                             hideMessage(loginMessage);
                             showScreen('scanner-screen');
-                            checkCameraAvailability();
                         }, 1500);
                     } else {
                         throw new Error(data.message || 'Invalid username or password');
@@ -1235,7 +1132,6 @@
             } catch (error) {
                 console.error('❌ Login error:', error);
                 
-                // If we have demo credentials, use them even with errors
                 if (isDemoCredentials(username, password)) {
                     coordinator = { name: username, username: username };
                     sessionStorage.setItem('freshers_coordinator', JSON.stringify(coordinator));
@@ -1243,7 +1139,6 @@
                     setTimeout(() => {
                         hideMessage(loginMessage);
                         showScreen('scanner-screen');
-                        checkCameraAvailability();
                     }, 1500);
                 } else {
                     if (error.name === 'AbortError') {
@@ -1255,7 +1150,6 @@
                     }
                 }
             } finally {
-                // Reset loading state
                 loginText.style.display = 'inline';
                 loginLoading.style.display = 'none';
                 loginBtn.disabled = false;
@@ -1274,29 +1168,24 @@
         
         // Logout handler
         function handleLogout() {
-            // Stop camera and scanning
             stopCamera();
             
-            // Clear data
             coordinator = null;
             currentStudent = null;
             selectedStatus = "";
             sessionStorage.removeItem('freshers_coordinator');
             
-            // Reset forms
             usernameInput.value = "";
             passwordInput.value = "";
             commentInput.value = "";
             statusButtons.forEach(btn => btn.classList.remove('active'));
             
-            // Show login screen
             showScreen('login-screen');
             setTimeout(() => usernameInput.focus(), 500);
         }
         
         // Display student details
         function displayStudentDetails(student) {
-            // Update text content
             studentId.textContent = student.StudentID || 'Not provided';
             studentName.textContent = student.StudentName || 'Not provided';
             classRoll.textContent = student.ClassRollNo || 'Not provided';
@@ -1308,7 +1197,6 @@
             fatherName.textContent = student.FatherName || 'Not provided';
             foodPreference.textContent = student.FoodPreference || 'Not provided';
             
-            // Handle photo
             if (student.Photo && student.Photo.trim() !== '') {
                 studentPhoto.src = student.Photo;
                 studentPhoto.style.display = 'block';
@@ -1319,7 +1207,6 @@
                 studentPhoto.style.display = 'none';
             }
             
-            // Reset form
             statusButtons.forEach(btn => btn.classList.remove('active'));
             selectedStatus = "";
             commentInput.value = "";
@@ -1337,7 +1224,6 @@
                 return;
             }
             
-            // Show loading state
             updateText.style.display = 'none';
             updateLoading.style.display = 'inline';
             updateStatusBtn.disabled = true;
@@ -1370,9 +1256,7 @@
                 try {
                     result = JSON.parse(responseText);
                 } catch (e) {
-                    // If JSON parsing fails, check if it's HTML
                     if (responseText.includes('<!DOCTYPE') || responseText.includes('<html')) {
-                        // For update, we'll assume success if we get HTML (GAS issue)
                         result = { success: true, message: "Status updated (API returned HTML)" };
                     } else {
                         throw new Error('Invalid response format from server during update');
@@ -1390,7 +1274,6 @@
                 showMessage(updateMessage, '⚠️ Update may not have saved. Please check connection.', 'warning');
                 setTimeout(backToScanner, 3000);
             } finally {
-                // Reset loading state
                 updateText.style.display = 'inline';
                 updateLoading.style.display = 'none';
                 updateStatusBtn.disabled = false;
@@ -1403,7 +1286,6 @@
             selectedStatus = "";
             showScreen('scanner-screen');
             
-            // Resume scanning
             if (cameraStream && !isScanning) {
                 startScanning();
             }

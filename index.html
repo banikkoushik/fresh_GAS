@@ -3,7 +3,8 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
-    <title>Freshers Welcome - QR Check-in</title>
+    <title>Freshers Welcome - QR Check-in System</title>
+    <meta name="description" content="QR Code based check-in system for Freshers Welcome event">
     <script src="https://cdn.jsdelivr.net/npm/jsqr@1.4.0/dist/jsQR.js"></script>
     <style>
         * {
@@ -12,6 +13,14 @@
             box-sizing: border-box;
             font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Oxygen, Ubuntu, Cantarell, sans-serif;
             -webkit-tap-highlight-color: transparent;
+        }
+        
+        :root {
+            --primary-gradient: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            --secondary-gradient: linear-gradient(135deg, #ff6b6b 0%, #ee5a24 100%);
+            --success-gradient: linear-gradient(135deg, #4CAF50 0%, #45a049 100%);
+            --warning-gradient: linear-gradient(135deg, #ff9800 0%, #f57c00 100%);
+            --danger-gradient: linear-gradient(135deg, #f44336 0%, #d32f2f 100%);
         }
         
         body {
@@ -31,14 +40,44 @@
             box-shadow: 0 20px 40px rgba(0, 0, 0, 0.1);
             overflow: hidden;
             position: relative;
+            animation: containerEnter 0.5s ease-out;
+        }
+        
+        @keyframes containerEnter {
+            from { 
+                opacity: 0; 
+                transform: translateY(20px) scale(0.95); 
+            }
+            to { 
+                opacity: 1; 
+                transform: translateY(0) scale(1); 
+            }
         }
         
         .header {
-            background: linear-gradient(135deg, #4a00e0 0%, #8e2de2 100%);
+            background: var(--primary-gradient);
             color: white;
             padding: 25px 20px;
             text-align: center;
             position: relative;
+            overflow: hidden;
+        }
+        
+        .header::before {
+            content: '';
+            position: absolute;
+            top: -50%;
+            left: -50%;
+            width: 200%;
+            height: 200%;
+            background: radial-gradient(circle, rgba(255,255,255,0.1) 1px, transparent 1px);
+            background-size: 20px 20px;
+            animation: float 20s infinite linear;
+        }
+        
+        @keyframes float {
+            from { transform: rotate(0deg); }
+            to { transform: rotate(360deg); }
         }
         
         .header::after {
@@ -48,7 +87,7 @@
             left: 0;
             right: 0;
             height: 20px;
-            background: linear-gradient(135deg, #4a00e0 0%, #8e2de2 100%);
+            background: var(--primary-gradient);
             border-radius: 50%;
             filter: blur(10px);
             opacity: 0.3;
@@ -58,11 +97,15 @@
             font-size: 1.4rem;
             margin-bottom: 8px;
             font-weight: 700;
+            position: relative;
+            z-index: 1;
         }
         
         .header p {
             opacity: 0.9;
             font-size: 0.9rem;
+            position: relative;
+            z-index: 1;
         }
         
         .content {
@@ -113,7 +156,7 @@
         }
         
         button {
-            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            background: var(--primary-gradient);
             color: white;
             border: none;
             padding: 18px 24px;
@@ -162,7 +205,19 @@
         }
         
         .secondary {
-            background: linear-gradient(135deg, #ff6b6b 0%, #ee5a24 100%);
+            background: var(--secondary-gradient);
+        }
+        
+        .success-btn {
+            background: var(--success-gradient);
+        }
+        
+        .warning-btn {
+            background: var(--warning-gradient);
+        }
+        
+        .danger-btn {
+            background: var(--danger-gradient);
         }
         
         .scanner-container {
@@ -208,6 +263,12 @@
             height: 200px;
             border: 2px solid #4CAF50;
             box-shadow: 0 0 0 1000px rgba(0, 0, 0, 0.3);
+            animation: scannerPulse 2s infinite;
+        }
+        
+        @keyframes scannerPulse {
+            0%, 100% { border-color: #4CAF50; }
+            50% { border-color: #8BC34A; }
         }
         
         .scanner-placeholder {
@@ -223,6 +284,18 @@
             margin-bottom: 25px;
             box-shadow: 0 8px 25px rgba(0, 0, 0, 0.08);
             border-left: 6px solid #667eea;
+            animation: cardEnter 0.4s ease-out;
+        }
+        
+        @keyframes cardEnter {
+            from { 
+                opacity: 0; 
+                transform: translateX(-20px); 
+            }
+            to { 
+                opacity: 1; 
+                transform: translateX(0); 
+            }
         }
         
         .student-photo {
@@ -314,6 +387,18 @@
             text-align: center;
             font-weight: 600;
             font-size: 0.95rem;
+            animation: messageSlide 0.3s ease-out;
+        }
+        
+        @keyframes messageSlide {
+            from { 
+                opacity: 0; 
+                transform: translateY(-10px); 
+            }
+            to { 
+                opacity: 1; 
+                transform: translateY(0); 
+            }
         }
         
         .success {
@@ -332,6 +417,12 @@
             background: #fff3e0;
             color: #ef6c00;
             border: 2px solid #ff9800;
+        }
+        
+        .info {
+            background: #e3f2fd;
+            color: #1565c0;
+            border: 2px solid #2196f3;
         }
         
         .test-credentials {
@@ -355,7 +446,7 @@
         }
         
         .logout-btn {
-            background: linear-gradient(135deg, #ff6b6b 0%, #ee5a24 100%);
+            background: var(--secondary-gradient);
             max-width: 200px;
             margin: 25px auto 0;
         }
@@ -389,6 +480,57 @@
             flex: 1;
             padding: 12px;
             font-size: 0.9rem;
+        }
+        
+        .coordinator-info {
+            background: var(--primary-gradient);
+            color: white;
+            padding: 15px;
+            border-radius: 12px;
+            margin-bottom: 20px;
+            text-align: center;
+        }
+        
+        .system-stats {
+            display: grid;
+            grid-template-columns: 1fr 1fr;
+            gap: 10px;
+            margin-bottom: 20px;
+        }
+        
+        .stat-item {
+            background: #f8f9fa;
+            padding: 15px;
+            border-radius: 10px;
+            text-align: center;
+            border: 2px solid #e9ecef;
+        }
+        
+        .stat-value {
+            font-size: 1.5rem;
+            font-weight: bold;
+            color: #667eea;
+        }
+        
+        .stat-label {
+            font-size: 0.8rem;
+            color: #6c757d;
+            margin-top: 5px;
+        }
+        
+        .loading {
+            display: inline-block;
+            width: 20px;
+            height: 20px;
+            border: 3px solid rgba(255,255,255,.3);
+            border-radius: 50%;
+            border-top-color: #fff;
+            animation: spin 1s ease-in-out infinite;
+            margin-right: 10px;
+        }
+        
+        @keyframes spin {
+            to { transform: rotate(360deg); }
         }
         
         /* Mobile-specific optimizations */
@@ -435,6 +577,10 @@
                 width: 180px;
                 height: 180px;
             }
+            
+            .system-stats {
+                grid-template-columns: 1fr;
+            }
         }
         
         @media (min-width: 768px) {
@@ -449,21 +595,10 @@
             .status-options {
                 grid-template-columns: 1fr 1fr 1fr;
             }
-        }
-        
-        .loading {
-            display: inline-block;
-            width: 20px;
-            height: 20px;
-            border: 3px solid rgba(255,255,255,.3);
-            border-radius: 50%;
-            border-top-color: #fff;
-            animation: spin 1s ease-in-out infinite;
-            margin-right: 10px;
-        }
-        
-        @keyframes spin {
-            to { transform: rotate(360deg); }
+            
+            .system-stats {
+                grid-template-columns: 1fr 1fr 1fr 1fr;
+            }
         }
         
         @supports(padding: max(0px)) {
@@ -479,7 +614,7 @@
     <div class="container">
         <div class="header">
             <h1>Freshers' Welcome</h1>
-            <p>QR Code Check-in System</p>
+            <p>QR Code Check-in System v2.0</p>
         </div>
         
         <div class="content">
@@ -506,14 +641,23 @@
                 
                 <div class="test-credentials">
                     <h4>Demo Credentials:</h4>
-                    <p><strong>admin</strong> / <strong>admin123</strong></p>
+                    <p><strong>admin</strong> / <strong>admin123</strong> (Full Access)</p>
                     <p><strong>coordinator1</strong> / <strong>coord123</strong></p>
-                    <p><strong>coordinator2</strong> / <strong>coord123</strong></p>
+                    <p><strong>viewer</strong> / <strong>view123</strong> (Read Only)</p>
                 </div>
             </div>
             
             <!-- Scanner Screen -->
             <div id="scanner-screen" class="screen">
+                <div class="coordinator-info">
+                    <h3>Welcome, <span id="coordinator-name">Coordinator</span>!</h3>
+                    <p id="coordinator-role">Event Coordinator</p>
+                </div>
+                
+                <div class="system-stats" id="system-stats" style="display: none;">
+                    <!-- Stats will be populated by JavaScript -->
+                </div>
+                
                 <h2 style="text-align: center; margin-bottom: 20px; color: #333;">QR Code Scanner</h2>
                 <p style="text-align: center; margin-bottom: 20px; color: #666;">Point camera at student QR code</p>
                 
@@ -538,6 +682,7 @@
                 
                 <div id="scanner-message" class="message" style="display: none;"></div>
                 
+                <button id="refresh-stats-btn" class="warning-btn" style="max-width: 200px; margin: 10px auto;">Refresh Stats</button>
                 <button id="logout-btn" class="logout-btn">Logout</button>
             </div>
             
@@ -616,10 +761,15 @@
     </div>
 
     <script>
-        // Configuration - Using your GAS deployment URL
-        const API_BASE = "https://script.google.com/macros/s/AKfycbzedrPiaBi7Ds36-n8tzA4Qfdw2EYhdTUkfejid1p7T2ecLpgz5GmuNrnKncBAYV0B8/exec";
+        // Enhanced Configuration
+        const getApiBase = () => {
+            // Use the same GAS deployment URL
+            return 'https://script.google.com/macros/s/AKfycbwCDuDfJuldt251WDghEGKEtV3p5pfH33KD4yua2Ti9I7crMn0nOvHEwi1v6qwXwGdS/exec';
+        };
         
-        // App State
+        const API_BASE = getApiBase();
+        
+        // Enhanced App State
         let coordinator = null;
         let currentStudent = null;
         let selectedStatus = "";
@@ -627,6 +777,7 @@
         let currentFacingMode = "environment";
         let isScanning = false;
         let scanInterval = null;
+        let systemStats = null;
         
         // DOM Elements
         const loginScreen = document.getElementById('login-screen');
@@ -639,6 +790,11 @@
         const loginText = document.getElementById('login-text');
         const loginLoading = document.getElementById('login-loading');
         const logoutBtn = document.getElementById('logout-btn');
+        const refreshStatsBtn = document.getElementById('refresh-stats-btn');
+        
+        const coordinatorName = document.getElementById('coordinator-name');
+        const coordinatorRole = document.getElementById('coordinator-role');
+        const systemStatsContainer = document.getElementById('system-stats');
         
         const cameraPermissionPrompt = document.getElementById('camera-permission-prompt');
         const enableCameraBtn = document.getElementById('enable-camera-btn');
@@ -674,15 +830,57 @@
         const scannerMessage = document.getElementById('scanner-message');
         const updateMessage = document.getElementById('update-message');
         
+        // Enhanced API Call Function
+        async function apiCall(url, options = {}) {
+            const controller = new AbortController();
+            const timeoutId = setTimeout(() => controller.abort(), 15000); // 15 second timeout
+            
+            try {
+                const response = await fetch(url, {
+                    ...options,
+                    signal: controller.signal
+                });
+                clearTimeout(timeoutId);
+                
+                const text = await response.text();
+                let data;
+                
+                try {
+                    data = JSON.parse(text);
+                } catch (e) {
+                    // Handle HTML responses from GAS
+                    if (text.includes('Freshers Welcome API')) {
+                        // This might be the HTML landing page
+                        throw new Error('API returned HTML page. The service might be misconfigured.');
+                    }
+                    throw new Error('Invalid JSON response from server');
+                }
+                
+                // Check for API errors
+                if (data.error) {
+                    throw new Error(data.message || 'API returned an error');
+                }
+                
+                return data;
+            } catch (error) {
+                clearTimeout(timeoutId);
+                if (error.name === 'AbortError') {
+                    throw new Error('Request timeout - server is not responding');
+                }
+                throw error;
+            }
+        }
+        
         // Initialize the application
         document.addEventListener('DOMContentLoaded', function() {
-            console.log('🚀 Freshers Welcome App Initialized');
+            console.log('🚀 Freshers Welcome App v2.0 Initialized');
             initApp();
         });
         
         // Event Listeners
         loginBtn.addEventListener('click', handleLogin);
         logoutBtn.addEventListener('click', handleLogout);
+        refreshStatsBtn.addEventListener('click', loadSystemStats);
         updateStatusBtn.addEventListener('click', handleStatusUpdate);
         backToScannerBtn.addEventListener('click', backToScanner);
         enableCameraBtn.addEventListener('click', startCamera);
@@ -712,8 +910,11 @@
             if (savedCoordinator) {
                 try {
                     coordinator = JSON.parse(savedCoordinator);
+                    updateCoordinatorUI();
                     showScreen('scanner-screen');
+                    loadSystemStats();
                 } catch (e) {
+                    console.error('Error loading saved session:', e);
                     sessionStorage.removeItem('freshers_coordinator');
                     showScreen('login-screen');
                 }
@@ -729,23 +930,81 @@
             }, 500);
         }
         
-        // Start camera with jsQR
+        // Update coordinator information in UI
+        function updateCoordinatorUI() {
+            if (coordinator) {
+                coordinatorName.textContent = coordinator.name;
+                coordinatorRole.textContent = coordinator.role || 'Event Coordinator';
+            }
+        }
+        
+        // Load system statistics
+        async function loadSystemStats() {
+            try {
+                const stats = await apiCall(`${API_BASE}?action=stats`);
+                systemStats = stats;
+                displaySystemStats(stats);
+            } catch (error) {
+                console.error('Failed to load system stats:', error);
+                // Don't show error for stats - it's non-critical
+            }
+        }
+        
+        // Display system statistics
+        function displaySystemStats(stats) {
+            if (!stats || stats.error) return;
+            
+            systemStatsContainer.innerHTML = `
+                <div class="stat-item">
+                    <div class="stat-value">${stats.totalStudents}</div>
+                    <div class="stat-label">Total</div>
+                </div>
+                <div class="stat-item">
+                    <div class="stat-value">${stats.checkedIn}</div>
+                    <div class="stat-label">Checked In</div>
+                </div>
+                <div class="stat-item">
+                    <div class="stat-value">${stats.pending}</div>
+                    <div class="stat-label">Pending</div>
+                </div>
+                <div class="stat-item">
+                    <div class="stat-value">${stats.checkInRate}</div>
+                    <div class="stat-label">Progress</div>
+                </div>
+            `;
+            systemStatsContainer.style.display = 'grid';
+        }
+        
+        // Enhanced camera initialization
         async function startCamera() {
             try {
                 showMessage(scannerMessage, 'Starting camera...', 'warning');
+                
+                // Check browser support
+                if (!navigator.mediaDevices || !navigator.mediaDevices.getUserMedia) {
+                    throw new Error('Camera API is not supported in this browser');
+                }
                 
                 // Stop any existing stream
                 if (cameraStream) {
                     cameraStream.getTracks().forEach(track => track.stop());
                 }
                 
-                // Try different camera constraints
+                // Try different camera constraints with fallbacks
                 const constraintsToTry = [
                     {
                         video: {
                             facingMode: { ideal: "environment" },
                             width: { ideal: 1280 },
-                            height: { ideal: 720 }
+                            height: { ideal: 720 },
+                            frameRate: { ideal: 30 }
+                        }
+                    },
+                    {
+                        video: {
+                            facingMode: { ideal: "environment" },
+                            width: { ideal: 640 },
+                            height: { ideal: 480 }
                         }
                     },
                     {
@@ -764,93 +1023,109 @@
                 
                 for (const constraints of constraintsToTry) {
                     try {
-                        console.log("Trying constraints:", constraints);
+                        console.log("Trying camera constraints:", constraints);
                         stream = await navigator.mediaDevices.getUserMedia(constraints);
                         break;
                     } catch (err) {
                         lastError = err;
-                        console.log("Camera constraint failed:", constraints, err);
+                        console.log("Camera constraint failed:", err.name);
                         continue;
                     }
                 }
                 
                 if (!stream) {
-                    throw lastError || new Error("All camera constraints failed");
+                    throw lastError || new Error("Unable to access any camera");
                 }
                 
                 cameraStream = stream;
                 
-                // Set video source
+                // Set video source and wait for it to load
                 videoElement.srcObject = cameraStream;
                 
-                return new Promise((resolve) => {
+                return new Promise((resolve, reject) => {
                     videoElement.onloadedmetadata = function() {
                         const videoWidth = videoElement.videoWidth;
                         const videoHeight = videoElement.videoHeight;
                         
-                        canvasElement.width = Math.max(videoWidth, 640);
-                        canvasElement.height = Math.max(videoHeight, 480);
+                        // Set canvas dimensions to match video
+                        canvasElement.width = videoWidth;
+                        canvasElement.height = videoHeight;
                         
+                        // Update UI
                         cameraPermissionPrompt.style.display = 'none';
                         scannerContainer.style.display = 'flex';
                         cameraControls.style.display = 'flex';
                         
+                        // Start scanning
                         startScanning();
                         
-                        showMessage(scannerMessage, 'Camera started successfully!', 'success');
+                        showMessage(scannerMessage, 'Camera started successfully! Point at QR code to scan.', 'success');
                         setTimeout(() => hideMessage(scannerMessage), 3000);
                         
                         resolve();
                     };
                     
-                    videoElement.onerror = function() {
-                        throw new Error("Video element failed to load");
+                    videoElement.onerror = function(err) {
+                        reject(new Error("Video element failed to load: " + err));
                     };
                     
+                    // Play the video
                     videoElement.play().catch(err => {
                         console.error("Video play error:", err);
+                        reject(new Error("Failed to play video stream: " + err.message));
                     });
                 });
                 
             } catch (err) {
-                console.error('Camera error:', err);
+                console.error('Camera initialization error:', err);
                 let errorMessage = 'Failed to access camera. ';
                 
-                if (err.name === 'NotAllowedError') {
-                    errorMessage += 'Camera permission was denied. Please allow camera access in your browser settings and refresh the page.';
-                } else if (err.name === 'NotFoundError') {
-                    errorMessage += 'No camera found on this device.';
-                } else if (err.name === 'NotSupportedError') {
-                    errorMessage += 'Camera not supported in this browser.';
-                } else if (err.name === 'NotReadableError') {
-                    errorMessage += 'Camera is already in use by another application. Please close other apps using the camera.';
-                } else if (err.name === 'OverconstrainedError') {
-                    errorMessage += 'Camera constraints could not be satisfied. Trying alternative camera...';
-                    setTimeout(() => {
-                        hideMessage(scannerMessage);
-                        startCamera();
-                    }, 2000);
-                    return;
-                } else {
-                    errorMessage += `Please check your camera settings. Error: ${err.message}`;
+                switch (err.name) {
+                    case 'NotAllowedError':
+                        errorMessage += 'Camera permission was denied. Please allow camera access in your browser settings and refresh the page.';
+                        break;
+                    case 'NotFoundError':
+                        errorMessage += 'No camera found on this device.';
+                        break;
+                    case 'NotSupportedError':
+                        errorMessage += 'Camera not supported in this browser. Try using Chrome, Firefox, or Edge.';
+                        break;
+                    case 'NotReadableError':
+                        errorMessage += 'Camera is already in use by another application. Please close other apps using the camera.';
+                        break;
+                    case 'OverconstrainedError':
+                        errorMessage += 'Camera constraints could not be satisfied. Trying alternative camera...';
+                        // Retry with different constraints
+                        setTimeout(() => {
+                            hideMessage(scannerMessage);
+                            startCamera();
+                        }, 2000);
+                        return;
+                    default:
+                        errorMessage += `Error: ${err.message}`;
                 }
                 
                 showMessage(scannerMessage, errorMessage, 'error');
                 
+                // Update permission prompt with troubleshooting info
                 cameraPermissionPrompt.innerHTML = `
                     <h3>Camera Access Required</h3>
                     <p>${errorMessage}</p>
                     <button id="enable-camera-btn">Try Again</button>
-                    <p style="font-size: 0.85rem; margin-top: 15px; color: #666;">
-                        <strong>Troubleshooting Tips:</strong><br>
-                        • Allow camera permissions when prompted<br>
-                        • Ensure no other app is using the camera<br>
-                        • Refresh the page and try again<br>
-                        • Check if your camera works in other apps<br>
-                        • Try using a different browser
-                    </p>
+                    <div style="font-size: 0.85rem; margin-top: 15px; color: #666; text-align: left;">
+                        <strong>Troubleshooting Tips:</strong>
+                        <ul style="margin: 10px 0; padding-left: 20px;">
+                            <li>Allow camera permissions when prompted</li>
+                            <li>Ensure no other app is using the camera</li>
+                            <li>Refresh the page and try again</li>
+                            <li>Check if your camera works in other apps</li>
+                            <li>Try using a different browser (Chrome recommended)</li>
+                            <li>Ensure you're using HTTPS (required for camera access)</li>
+                        </ul>
+                    </div>
                 `;
                 
+                // Re-attach event listener to the new button
                 document.getElementById('enable-camera-btn').addEventListener('click', startCamera);
             }
         }
@@ -858,7 +1133,7 @@
         // Switch between cameras
         async function switchCamera() {
             currentFacingMode = currentFacingMode === "environment" ? "user" : "environment";
-            startCamera();
+            await startCamera();
         }
         
         // Stop camera
@@ -889,7 +1164,7 @@
             if (isScanning) return;
             
             isScanning = true;
-            scanInterval = setInterval(scanQRCode, 500);
+            scanInterval = setInterval(scanQRCode, 500); // Scan every 500ms
         }
         
         // Stop QR code scanning
@@ -901,111 +1176,64 @@
             }
         }
         
-        // Scan for QR codes using jsQR
+        // Enhanced QR code scanning
         function scanQRCode() {
-            if (!isScanning || !videoElement.srcObject || videoElement.readyState !== videoElement.HAVE_ENOUGH_DATA) {
-                return;
-            }
+            if (!isScanning || !videoElement.srcObject) return;
             
             try {
+                if (videoElement.readyState !== videoElement.HAVE_ENOUGH_DATA) {
+                    return;
+                }
+                
+                const videoWidth = videoElement.videoWidth;
+                const videoHeight = videoElement.videoHeight;
+                
+                // Ensure canvas matches video dimensions
+                if (canvasElement.width !== videoWidth || canvasElement.height !== videoHeight) {
+                    canvasElement.width = videoWidth;
+                    canvasElement.height = videoHeight;
+                }
+                
+                // Draw current video frame to canvas
                 canvasContext.drawImage(videoElement, 0, 0, canvasElement.width, canvasElement.height);
                 
+                // Get image data for QR scanning
                 const imageData = canvasContext.getImageData(0, 0, canvasElement.width, canvasElement.height);
                 
+                // Use jsQR to detect QR codes
                 const code = jsQR(imageData.data, imageData.width, imageData.height, {
                     inversionAttempts: "dontInvert",
                 });
                 
                 if (code) {
-                    console.log("QR Code found:", code.data);
+                    console.log("✅ QR Code detected:", code.data.substring(0, 100) + '...');
                     stopScanning();
                     handleScannedQR(code.data);
                 }
             } catch (err) {
                 console.error("QR scanning error:", err);
+                // Don't stop scanning on single frame errors
             }
         }
         
-        // Handle scanned QR code - FIXED: Use the actual QR data to search in spreadsheet
+        // Handle scanned QR code
         async function handleScannedQR(qrData) {
             showMessage(scannerMessage, 'QR Code detected. Looking up student...', 'warning');
             
             try {
-                // Use the scanned QR data directly to search in the spreadsheet
                 const url = `${API_BASE}?action=get&qr=${encodeURIComponent(qrData)}`;
                 console.log("Fetching student data from:", url);
                 
-                let response;
-                try {
-                    // First try with regular fetch
-                    response = await fetch(url);
-                    console.log("Response status:", response.status, response.statusText);
-                } catch (fetchError) {
-                    console.error("Fetch error:", fetchError);
-                    throw new Error(`Network error: ${fetchError.message}`);
-                }
+                const data = await apiCall(url);
+                console.log("Student data received:", data);
                 
-                // Get the response as text first to handle both JSON and HTML
-                const responseText = await response.text();
-                console.log("Raw response:", responseText);
-                
-                let data;
-                
-                // Try to parse as JSON first
-                try {
-                    data = JSON.parse(responseText);
-                    console.log("Successfully parsed as JSON");
-                } catch (jsonError) {
-                    console.log("Not valid JSON, checking if it's HTML");
-                    
-                    // Check if it's HTML (GAS might be returning the HTML page)
-                    if (responseText.includes('<!DOCTYPE') || responseText.includes('<html') || 
-                        responseText.includes('Freshers Welcome API')) {
-                        console.log("Detected HTML response from GAS");
-                        
-                        // Try to extract JSON from script tags or other elements
-                        const jsonMatch = responseText.match(/\{[\s\S]*\}/);
-                        if (jsonMatch) {
-                            try {
-                                data = JSON.parse(jsonMatch[0]);
-                                console.log("Extracted JSON from HTML");
-                            } catch (e) {
-                                throw new Error("GAS returned HTML instead of JSON. Please check your API deployment.");
-                            }
-                        } else {
-                            throw new Error("GAS returned HTML page. Make sure your API is properly deployed and the 'action' parameter is correct.");
-                        }
-                    } else {
-                        throw new Error("Invalid response format from server. Expected JSON but got: " + responseText.substring(0, 100));
-                    }
-                }
-                
-                console.log("Parsed student data:", data);
-                
-                // Check if we found the student
-                if (data && data.found && data.student) {
+                if (data.found && data.student) {
                     currentStudent = data.student;
                     displayStudentDetails(currentStudent);
                     hideMessage(scannerMessage);
                     showScreen('student-screen');
-                } else if (data && data.error) {
-                    showMessage(scannerMessage, `Database error: ${data.error}`, 'error');
-                    setTimeout(() => {
-                        hideMessage(scannerMessage);
-                        startScanning();
-                    }, 4000);
-                } else if (data && data.message) {
-                    showMessage(scannerMessage, data.message, 'error');
-                    setTimeout(() => {
-                        hideMessage(scannerMessage);
-                        startScanning();
-                    }, 4000);
                 } else {
-                    showMessage(scannerMessage, 'Student not found or invalid response.', 'error');
-                    setTimeout(() => {
-                        hideMessage(scannerMessage);
-                        startScanning();
-                    }, 4000);
+                    throw new Error(data.message || 'Student not found');
                 }
                 
             } catch (error) {
@@ -1035,6 +1263,8 @@
                 if (cameraStream && !isScanning) {
                     startScanning();
                 }
+                // Refresh stats when returning to scanner
+                loadSystemStats();
             }
         }
         
@@ -1050,7 +1280,7 @@
             element.style.display = 'none';
         }
         
-        // Login handler
+        // Enhanced login handler
         async function handleLogin() {
             const username = usernameInput.value.trim();
             const password = passwordInput.value.trim();
@@ -1061,6 +1291,7 @@
                 return;
             }
             
+            // Update UI for loading state
             loginText.style.display = 'none';
             loginLoading.style.display = 'inline';
             loginBtn.disabled = true;
@@ -1071,85 +1302,60 @@
                 const loginUrl = `${API_BASE}?action=verifycoordinator&username=${encodeURIComponent(username)}&password=${encodeURIComponent(password)}`;
                 console.log('🔐 Login attempt:', loginUrl);
                 
-                const response = await fetch(loginUrl);
-                console.log("Login response status:", response.status);
-                
-                const responseText = await response.text();
-                console.log("Login raw response:", responseText.substring(0, 200) + "...");
-                
-                let data;
-                
-                try {
-                    data = JSON.parse(responseText);
-                } catch (jsonError) {
-                    console.log("Not valid JSON, checking if it's HTML");
-                    
-                    if (responseText.includes('<!DOCTYPE') || responseText.includes('<html') || 
-                        responseText.includes('Freshers Welcome API')) {
-                        console.log("Detected HTML response from GAS for login");
-                        
-                        if (isDemoCredentials(username, password)) {
-                            data = { authenticated: true, name: username };
-                        } else {
-                            throw new Error("GAS returned HTML instead of JSON. Using demo mode for valid credentials.");
-                        }
-                    } else {
-                        throw new Error("Invalid response format from server during login.");
-                    }
-                }
-                
+                const data = await apiCall(loginUrl);
                 console.log('📨 Login response:', data);
                 
                 if (data.authenticated) {
                     coordinator = {
                         name: data.name || username,
-                        username: data.username || username
+                        username: data.username || username,
+                        role: data.role || 'Event Coordinator',
+                        permissions: data.permissions || ['read', 'write']
                     };
                     
+                    // Save to session storage
                     sessionStorage.setItem('freshers_coordinator', JSON.stringify(coordinator));
                     
                     showMessage(loginMessage, `Welcome, ${coordinator.name}!`, 'success');
                     
                     setTimeout(() => {
                         hideMessage(loginMessage);
+                        updateCoordinatorUI();
                         showScreen('scanner-screen');
+                        loadSystemStats();
                     }, 1500);
                     
                 } else {
-                    if (isDemoCredentials(username, password)) {
-                        coordinator = { name: username, username: username };
-                        sessionStorage.setItem('freshers_coordinator', JSON.stringify(coordinator));
-                        showMessage(loginMessage, 'Using demo mode (API returned HTML).', 'warning');
-                        setTimeout(() => {
-                            hideMessage(loginMessage);
-                            showScreen('scanner-screen');
-                        }, 1500);
-                    } else {
-                        throw new Error(data.message || 'Invalid username or password');
-                    }
+                    throw new Error(data.message || 'Authentication failed');
                 }
                 
             } catch (error) {
                 console.error('❌ Login error:', error);
                 
+                // Special handling for demo credentials when API is down
                 if (isDemoCredentials(username, password)) {
-                    coordinator = { name: username, username: username };
+                    coordinator = { 
+                        name: username, 
+                        username: username,
+                        role: 'Demo Coordinator',
+                        permissions: ['read', 'write']
+                    };
                     sessionStorage.setItem('freshers_coordinator', JSON.stringify(coordinator));
-                    showMessage(loginMessage, 'Using demo mode (API error).', 'warning');
+                    showMessage(loginMessage, 'Using demo mode (API unavailable).', 'warning');
                     setTimeout(() => {
                         hideMessage(loginMessage);
+                        updateCoordinatorUI();
                         showScreen('scanner-screen');
                     }, 1500);
                 } else {
-                    if (error.name === 'AbortError') {
-                        showMessage(loginMessage, 'Login timeout. Please check your internet connection.', 'error');
-                    } else if (error.message.includes('Failed to fetch') || error.message.includes('NetworkError')) {
+                    if (error.message.includes('timeout') || error.message.includes('NetworkError')) {
                         showMessage(loginMessage, 'Network error. Please check your internet connection and try again.', 'error');
                     } else {
                         showMessage(loginMessage, `Login failed: ${error.message}`, 'error');
                     }
                 }
             } finally {
+                // Reset UI state
                 loginText.style.display = 'inline';
                 loginLoading.style.display = 'none';
                 loginBtn.disabled = false;
@@ -1161,7 +1367,8 @@
             const demoAccounts = [
                 { user: 'admin', pass: 'admin123' },
                 { user: 'coordinator1', pass: 'coord123' },
-                { user: 'coordinator2', pass: 'coord123' }
+                { user: 'coordinator2', pass: 'coord123' },
+                { user: 'viewer', pass: 'view123' }
             ];
             return demoAccounts.some(acc => acc.user === username && acc.pass === password);
         }
@@ -1173,12 +1380,15 @@
             coordinator = null;
             currentStudent = null;
             selectedStatus = "";
+            systemStats = null;
             sessionStorage.removeItem('freshers_coordinator');
             
+            // Reset form fields
             usernameInput.value = "";
             passwordInput.value = "";
             commentInput.value = "";
             statusButtons.forEach(btn => btn.classList.remove('active'));
+            systemStatsContainer.style.display = 'none';
             
             showScreen('login-screen');
             setTimeout(() => usernameInput.focus(), 500);
@@ -1197,7 +1407,8 @@
             fatherName.textContent = student.FatherName || 'Not provided';
             foodPreference.textContent = student.FoodPreference || 'Not provided';
             
-            if (student.Photo && student.Photo.trim() !== '') {
+            // Handle student photo
+            if (student.Photo && student.Photo.trim() !== '' && student.Photo !== 'Not provided') {
                 studentPhoto.src = student.Photo;
                 studentPhoto.style.display = 'block';
                 studentPhoto.onerror = function() {
@@ -1207,12 +1418,13 @@
                 studentPhoto.style.display = 'none';
             }
             
+            // Reset form state
             statusButtons.forEach(btn => btn.classList.remove('active'));
             selectedStatus = "";
             commentInput.value = "";
         }
         
-        // Update status handler
+        // Enhanced status update handler
         async function handleStatusUpdate() {
             if (!currentStudent) {
                 showMessage(updateMessage, 'No student selected!', 'error');
@@ -1224,6 +1436,7 @@
                 return;
             }
             
+            // Update UI for loading state
             updateText.style.display = 'none';
             updateLoading.style.display = 'inline';
             updateStatusBtn.disabled = true;
@@ -1249,31 +1462,34 @@
                 });
                 
                 const responseText = await response.text();
-                console.log("Update response:", responseText);
-                
                 let result;
                 
                 try {
                     result = JSON.parse(responseText);
                 } catch (e) {
-                    if (responseText.includes('<!DOCTYPE') || responseText.includes('<html')) {
-                        result = { success: true, message: "Status updated (API returned HTML)" };
+                    // Handle HTML responses
+                    if (responseText.includes('success')) {
+                        result = { success: true, message: "Status updated successfully" };
                     } else {
-                        throw new Error('Invalid response format from server during update');
+                        throw new Error('Invalid response format');
                     }
                 }
                 
                 if (result.success) {
                     showMessage(updateMessage, `✅ ${result.message || 'Status updated successfully!'}`, 'success');
-                    setTimeout(backToScanner, 2000);
+                    // Refresh stats after update
+                    setTimeout(() => {
+                        loadSystemStats();
+                        backToScanner();
+                    }, 2000);
                 } else {
-                    showMessage(updateMessage, `❌ ${result.error || 'Failed to update status!'}`, 'error');
+                    throw new Error(result.message || 'Failed to update status');
                 }
             } catch (error) {
                 console.error("❌ Status update error:", error);
-                showMessage(updateMessage, '⚠️ Update may not have saved. Please check connection.', 'warning');
-                setTimeout(backToScanner, 3000);
+                showMessage(updateMessage, `Error: ${error.message}`, 'error');
             } finally {
+                // Reset UI state
                 updateText.style.display = 'inline';
                 updateLoading.style.display = 'none';
                 updateStatusBtn.disabled = false;
@@ -1298,6 +1514,19 @@
             } else if (!document.hidden && scannerScreen.classList.contains('active') && cameraStream) {
                 startScanning();
             }
+        });
+        
+        // Handle online/offline status
+        window.addEventListener('online', function() {
+            console.log('App is back online');
+            if (scannerScreen.classList.contains('active')) {
+                loadSystemStats();
+            }
+        });
+        
+        window.addEventListener('offline', function() {
+            console.log('App is offline');
+            showMessage(scannerMessage, 'You are currently offline. Some features may not work.', 'warning');
         });
     </script>
 </body>

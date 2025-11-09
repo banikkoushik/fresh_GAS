@@ -4,7 +4,7 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
     <title>ECE Freshers Welcome - QR Check-in System</title>
-    <meta name="description" content="QR Code based check-in system for ECE Freshers Welcome event with URL and PNG support">
+    <meta name="description" content="QR Code based check-in system for ECE Freshers Welcome event with me-page.org URL support">
     <script src="https://cdn.jsdelivr.net/npm/jsqr@1.4.0/dist/jsQR.js"></script>
     <style>
         * {
@@ -543,6 +543,21 @@
             border-left: 4px solid #2196F3;
         }
         
+        .photo-placeholder {
+            width: 120px;
+            height: 120px;
+            border-radius: 50%;
+            background: #f0f0f0;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            margin: 0 auto 20px;
+            border: 4px solid #ddd;
+            color: #999;
+            font-size: 0.9rem;
+            text-align: center;
+        }
+        
         .loading {
             display: inline-block;
             width: 20px;
@@ -593,7 +608,7 @@
                 padding: 20px;
             }
             
-            .student-photo {
+            .student-photo, .photo-placeholder {
                 width: 100px;
                 height: 100px;
             }
@@ -639,7 +654,7 @@
     <div class="container">
         <div class="header">
             <h1>ECE Freshers Welcome</h1>
-            <p>QR Code Check-in System v2.4</p>
+            <p>QR Code Check-in System v2.5</p>
         </div>
         
         <div class="content">
@@ -687,8 +702,8 @@
                 <p style="text-align: center; margin-bottom: 20px; color: #666;">Point camera at student QR code</p>
                 
                 <div class="qr-info-url">
-                    <strong>🔗 URL QR Codes Supported</strong>
-                    <p style="font-size: 0.9rem; margin-top: 5px;">System automatically extracts student IDs from QR codes containing URLs</p>
+                    <strong>🔗 me-page.org URLs Supported</strong>
+                    <p style="font-size: 0.9rem; margin-top: 5px;">System handles QR codes containing me-page.org links and extracts student photos from images</p>
                 </div>
                 
                 <div id="camera-permission-prompt" class="camera-permission">
@@ -725,7 +740,12 @@
                 </div>
                 
                 <div class="student-card">
-                    <img id="student-photo" src="" alt="Student Photo" class="student-photo" style="display: none;">
+                    <div id="photo-container">
+                        <img id="student-photo" src="" alt="Student Photo" class="student-photo" style="display: none;">
+                        <div id="photo-placeholder" class="photo-placeholder" style="display: none;">
+                            📷<br>No Photo
+                        </div>
+                    </div>
                     
                     <div class="student-info">
                         <div class="info-item">
@@ -796,7 +816,7 @@
 
     <script>
         // Configuration - Using your GAS deployment URL
-        const API_BASE = "https://script.google.com/macros/s/AKfycbxOT24_bvd6OL5oN-KDbffRw3zy90dPoADm5aSWbuh8ZHVCE6iu712foBGITilpM0AC/exec";
+        const API_BASE = "https://script.google.com/macros/s/AKfycbx9A28x0uexBTGWFm2y8A47t0pPCDzWPGkTUKK4g7S5MRUpmac_NLXulydAegCcKrSf/exec";
         
         // Enhanced App State
         let coordinator = null;
@@ -826,6 +846,9 @@
         const coordinatorRole = document.getElementById('coordinator-role');
         const systemStatsContainer = document.getElementById('system-stats');
         const qrMatchInfo = document.getElementById('qr-match-info');
+        const photoContainer = document.getElementById('photo-container');
+        const studentPhoto = document.getElementById('student-photo');
+        const photoPlaceholder = document.getElementById('photo-placeholder');
         
         const cameraPermissionPrompt = document.getElementById('camera-permission-prompt');
         const enableCameraBtn = document.getElementById('enable-camera-btn');
@@ -848,7 +871,6 @@
         const mobile = document.getElementById('mobile');
         const fatherName = document.getElementById('father-name');
         const foodPreference = document.getElementById('food-preference');
-        const studentPhoto = document.getElementById('student-photo');
         
         const statusButtons = document.querySelectorAll('.status-btn');
         const commentInput = document.getElementById('comment');
@@ -875,7 +897,6 @@
                 const response = await fetch(finalUrl, {
                     ...options,
                     signal: controller.signal
-                    // Remove mode: 'no-cors' - this prevents reading responses!
                 });
                 
                 clearTimeout(timeoutId);
@@ -917,7 +938,7 @@
                 }
                 
                 if (error.message.includes('Failed to fetch')) {
-                    throw new Error('Network error - cannot connect to server. Check internet connection and CORS settings.');
+                    throw new Error('Network error - cannot connect to server. Please check your internet connection.');
                 }
                 
                 if (error.message.includes('NetworkError')) {
@@ -930,9 +951,9 @@
         
         // Initialize the application
         document.addEventListener('DOMContentLoaded', function() {
-            console.log('🚀 ECE Freshers Welcome App v2.4 Initialized');
+            console.log('🚀 ECE Freshers Welcome App v2.5 Initialized');
             console.log('🔗 API Base URL:', API_BASE);
-            console.log('🌟 Features: QR URL Support, PNG Handling');
+            console.log('🌟 Features: me-page.org URLs, Image Handling, Photo Display');
             initApp();
         });
         
@@ -1282,11 +1303,11 @@
         async function handleScannedQR(qrData) {
             showMessage(scannerMessage, 'QR Code detected. Looking up student...', 'warning');
             
-            // Check if QR contains a URL
-            const isUrl = qrData.startsWith('http');
-            if (isUrl) {
-                console.log('🔗 QR code contains URL, extracting student data...');
-                showMessage(scannerMessage, 'URL detected in QR code. Extracting student information...', 'info');
+            // Check if QR contains a me-page.org URL
+            const isMePage = qrData.includes('me-page.org');
+            if (isMePage) {
+                console.log('🔗 me-page.org URL detected in QR code');
+                showMessage(scannerMessage, 'me-page.org URL detected. Fetching student data...', 'info');
             }
             
             try {
@@ -1308,9 +1329,9 @@
             } catch (error) {
                 console.error("Student lookup error:", error);
                 
-                // Special handling for URL QR codes
-                if (isUrl) {
-                    showMessage(scannerMessage, 'URL QR code detected but student not found. The system extracts student IDs from URLs. Please ensure the QR code URL contains the correct student identifier.', 'error');
+                // Special handling for me-page.org URLs
+                if (isMePage) {
+                    showMessage(scannerMessage, 'me-page.org URL detected but student not found. Please ensure the URL in column L matches exactly with the QR code.', 'error');
                 } else {
                     showMessage(scannerMessage, 'Error: ' + error.message, 'error');
                 }
@@ -1471,7 +1492,7 @@
             setTimeout(() => usernameInput.focus(), 500);
         }
         
-        // Display student details with match type info
+        // Display student details with match type info and photo handling
         function displayStudentDetails(student, matchType) {
             studentId.textContent = student.StudentID || 'Not provided';
             studentName.textContent = student.StudentName || 'Not provided';
@@ -1486,12 +1507,12 @@
             
             // Show QR match info if available
             if (matchType) {
-                const isUrl = lastScannedQR.startsWith('http');
+                const isMePage = lastScannedQR.includes('me-page.org');
                 qrMatchInfo.innerHTML = `
-                    <strong>${isUrl ? '🔗 URL QR Code' : '📄 Direct QR Code'}</strong>
+                    <strong>${isMePage ? '🔗 me-page.org URL' : '📄 QR Code'}</strong>
                     <p style="font-size: 0.9rem; margin-top: 5px;">
                         Match Type: <strong>${matchType}</strong>
-                        ${isUrl ? `<br>Original URL: <code style="font-size: 0.8rem;">${lastScannedQR.substring(0, 50)}...</code>` : ''}
+                        ${isMePage ? `<br>URL: <code style="font-size: 0.8rem;">${lastScannedQR.substring(0, 50)}...</code>` : ''}
                     </p>
                 `;
                 qrMatchInfo.style.display = 'block';
@@ -1499,15 +1520,32 @@
                 qrMatchInfo.style.display = 'none';
             }
             
-            // Handle student photo
+            // Handle student photo - enhanced to handle image URLs
             if (student.Photo && student.Photo.trim() !== '' && student.Photo !== 'Not provided') {
-                studentPhoto.src = student.Photo;
-                studentPhoto.style.display = 'block';
-                studentPhoto.onerror = function() {
-                    this.style.display = 'none';
-                };
+                // Check if it's a valid image URL
+                if (student.Photo.startsWith('http') || student.Photo.startsWith('https')) {
+                    studentPhoto.src = student.Photo;
+                    studentPhoto.style.display = 'block';
+                    photoPlaceholder.style.display = 'none';
+                    
+                    studentPhoto.onerror = function() {
+                        console.log('❌ Photo failed to load:', student.Photo);
+                        studentPhoto.style.display = 'none';
+                        photoPlaceholder.style.display = 'flex';
+                    };
+                    
+                    studentPhoto.onload = function() {
+                        console.log('✅ Photo loaded successfully:', student.Photo);
+                    };
+                } else {
+                    // Not a valid URL, show placeholder
+                    studentPhoto.style.display = 'none';
+                    photoPlaceholder.style.display = 'flex';
+                }
             } else {
+                // No photo available
                 studentPhoto.style.display = 'none';
+                photoPlaceholder.style.display = 'flex';
             }
             
             // Reset form state
@@ -1516,7 +1554,7 @@
             commentInput.value = "";
         }
         
-        // Enhanced status update handler
+        // Enhanced status update handler with better error handling
         async function handleStatusUpdate() {
             if (!currentStudent) {
                 showMessage(updateMessage, 'No student selected!', 'error');
@@ -1549,7 +1587,7 @@
             try {
                 showMessage(updateMessage, 'Updating status...', 'warning');
                 
-                // Use the enhanced apiCall function
+                // Use the enhanced apiCall function with better error handling
                 const result = await apiCall(API_BASE, {
                     method: "POST",
                     headers: { 
@@ -1576,11 +1614,11 @@
                 
                 // Provide more user-friendly error messages
                 if (error.message.includes('Network error') || error.message.includes('Failed to fetch')) {
-                    userMessage = 'Network connection failed. Please check your internet connection and try again.';
+                    userMessage = 'Network connection failed. Please check your internet connection and try again. If the problem persists, refresh the page.';
                 } else if (error.message.includes('timeout')) {
-                    userMessage = 'Server is taking too long to respond. Please try again.';
+                    userMessage = 'Server is taking too long to respond. Please try again in a moment.';
                 } else if (error.message.includes('CORS')) {
-                    userMessage = 'Browser security restrictions are blocking the request. Try refreshing the page.';
+                    userMessage = 'Browser security restrictions are blocking the request. Try refreshing the page or using a different browser.';
                 }
                 
                 showMessage(updateMessage, `❌ Update failed: ${userMessage}`, 'error');

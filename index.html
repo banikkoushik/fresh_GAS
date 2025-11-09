@@ -4,7 +4,7 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
     <title>ECE Freshers Welcome - QR Check-in System</title>
-    <meta name="description" content="QR Code based check-in system for ECE Freshers Welcome event with me-page.org URL support">
+    <meta name="description" content="QR Code based check-in system for ECE Freshers Welcome event with URL QR code support">
     <script src="https://cdn.jsdelivr.net/npm/jsqr@1.4.0/dist/jsQR.js"></script>
     <style>
         * {
@@ -299,14 +299,17 @@
         }
         
         .student-photo {
-            width: 120px;
-            height: 120px;
-            border-radius: 50%;
-            object-fit: cover;
+            max-width: 150px;
+            max-height: 150px;
+            width: auto;
+            height: auto;
+            border-radius: 8px;
+            object-fit: contain;
             margin: 0 auto 20px;
             display: block;
-            border: 4px solid #667eea;
-            box-shadow: 0 8px 20px rgba(102, 126, 234, 0.3);
+            border: 3px solid #667eea;
+            box-shadow: 0 4px 15px rgba(102, 126, 234, 0.3);
+            background: #f8f9fa;
         }
         
         .student-info {
@@ -544,16 +547,16 @@
         }
         
         .photo-placeholder {
-            width: 120px;
-            height: 120px;
-            border-radius: 50%;
-            background: #f0f0f0;
+            width: 150px;
+            height: 150px;
+            border-radius: 8px;
+            background: #f8f9fa;
             display: flex;
             align-items: center;
             justify-content: center;
             margin: 0 auto 20px;
-            border: 4px solid #ddd;
-            color: #999;
+            border: 3px solid #dee2e6;
+            color: #6c757d;
             font-size: 0.9rem;
             text-align: center;
         }
@@ -608,11 +611,6 @@
                 padding: 20px;
             }
             
-            .student-photo, .photo-placeholder {
-                width: 100px;
-                height: 100px;
-            }
-            
             .scanner-frame {
                 width: 180px;
                 height: 180px;
@@ -654,7 +652,7 @@
     <div class="container">
         <div class="header">
             <h1>ECE Freshers Welcome</h1>
-            <p>QR Code Check-in System v2.5</p>
+            <p>QR Code Check-in System v3.0</p>
         </div>
         
         <div class="content">
@@ -702,8 +700,8 @@
                 <p style="text-align: center; margin-bottom: 20px; color: #666;">Point camera at student QR code</p>
                 
                 <div class="qr-info-url">
-                    <strong>🔗 me-page.org URLs Supported</strong>
-                    <p style="font-size: 0.9rem; margin-top: 5px;">System handles QR codes containing me-page.org links and extracts student photos from images</p>
+                    <strong>🔗 URL QR Codes Supported</strong>
+                    <p style="font-size: 0.9rem; margin-top: 5px;">System matches QR code URLs with data in column L of the sheet</p>
                 </div>
                 
                 <div id="camera-permission-prompt" class="camera-permission">
@@ -816,7 +814,7 @@
 
     <script>
         // Configuration - Using your GAS deployment URL
-        const API_BASE = "https://script.google.com/macros/s/AKfycbx9A28x0uexBTGWFm2y8A47t0pPCDzWPGkTUKK4g7S5MRUpmac_NLXulydAegCcKrSf/exec";
+        const API_BASE = "https://script.google.com/macros/s/AKfycbzph4h_BIxtMru8KlsPtsUTxL1lVKBP5aL02TXc7tYKSyMcUBaLID9B8nfM-fra8el7/exec";
         
         // Enhanced App State
         let coordinator = null;
@@ -951,9 +949,9 @@
         
         // Initialize the application
         document.addEventListener('DOMContentLoaded', function() {
-            console.log('🚀 ECE Freshers Welcome App v2.5 Initialized');
+            console.log('🚀 ECE Freshers Welcome App v3.0 Initialized');
             console.log('🔗 API Base URL:', API_BASE);
-            console.log('🌟 Features: me-page.org URLs, Image Handling, Photo Display');
+            console.log('🌟 Features: URL QR Codes, Real-time Updates, Photo Aspect Ratio');
             initApp();
         });
         
@@ -1303,11 +1301,11 @@
         async function handleScannedQR(qrData) {
             showMessage(scannerMessage, 'QR Code detected. Looking up student...', 'warning');
             
-            // Check if QR contains a me-page.org URL
-            const isMePage = qrData.includes('me-page.org');
-            if (isMePage) {
-                console.log('🔗 me-page.org URL detected in QR code');
-                showMessage(scannerMessage, 'me-page.org URL detected. Fetching student data...', 'info');
+            // Check if QR contains a URL
+            const isURL = qrData.includes('http') || qrData.includes('.') || qrData.includes('/');
+            if (isURL) {
+                console.log('🔗 URL detected in QR code:', qrData);
+                showMessage(scannerMessage, 'URL detected. Fetching student data...', 'info');
             }
             
             try {
@@ -1329,9 +1327,9 @@
             } catch (error) {
                 console.error("Student lookup error:", error);
                 
-                // Special handling for me-page.org URLs
-                if (isMePage) {
-                    showMessage(scannerMessage, 'me-page.org URL detected but student not found. Please ensure the URL in column L matches exactly with the QR code.', 'error');
+                // Special handling for URLs
+                if (isURL) {
+                    showMessage(scannerMessage, 'URL detected but student not found. Please ensure the URL in column L matches exactly with the QR code.', 'error');
                 } else {
                     showMessage(scannerMessage, 'Error: ' + error.message, 'error');
                 }
@@ -1507,12 +1505,12 @@
             
             // Show QR match info if available
             if (matchType) {
-                const isMePage = lastScannedQR.includes('me-page.org');
+                const isURL = lastScannedQR.includes('http') || lastScannedQR.includes('.') || lastScannedQR.includes('/');
                 qrMatchInfo.innerHTML = `
-                    <strong>${isMePage ? '🔗 me-page.org URL' : '📄 QR Code'}</strong>
+                    <strong>${isURL ? '🔗 URL QR Code' : '📄 QR Code'}</strong>
                     <p style="font-size: 0.9rem; margin-top: 5px;">
                         Match Type: <strong>${matchType}</strong>
-                        ${isMePage ? `<br>URL: <code style="font-size: 0.8rem;">${lastScannedQR.substring(0, 50)}...</code>` : ''}
+                        ${isURL ? `<br>URL: <code style="font-size: 0.8rem;">${lastScannedQR.substring(0, 50)}...</code>` : ''}
                     </p>
                 `;
                 qrMatchInfo.style.display = 'block';
@@ -1520,7 +1518,7 @@
                 qrMatchInfo.style.display = 'none';
             }
             
-            // Handle student photo - enhanced to handle image URLs
+            // Handle student photo - maintains aspect ratio
             if (student.Photo && student.Photo.trim() !== '' && student.Photo !== 'Not provided') {
                 // Check if it's a valid image URL
                 if (student.Photo.startsWith('http') || student.Photo.startsWith('https')) {

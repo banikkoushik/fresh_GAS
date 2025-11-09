@@ -546,6 +546,19 @@
             border-left: 4px solid #2196F3;
         }
         
+        .qr-data-display {
+            background: #fff3e0;
+            padding: 15px;
+            border-radius: 8px;
+            margin-bottom: 15px;
+            border-left: 4px solid #ff9800;
+            font-family: 'Courier New', monospace;
+            font-size: 0.85rem;
+            word-break: break-all;
+            max-height: 150px;
+            overflow-y: auto;
+        }
+        
         .photo-placeholder {
             width: 150px;
             height: 150px;
@@ -725,6 +738,15 @@
                 
                 <div id="scanner-message" class="message" style="display: none;"></div>
                 
+                <!-- QR Data Display for Testing -->
+                <div id="qr-data-display" class="qr-data-display" style="display: none;">
+                    <strong>🔍 QR Data for Testing:</strong>
+                    <p style="margin-top: 8px; font-size: 0.8rem;" id="qr-data-text">No QR data scanned yet</p>
+                    <p style="margin-top: 5px; font-size: 0.75rem; color: #666;">
+                        <strong>Note:</strong> Copy this exact data to Column L in your Google Sheet
+                    </p>
+                </div>
+                
                 <button id="refresh-stats-btn" class="warning-btn" style="max-width: 200px; margin: 10px auto;">Refresh Stats</button>
                 <button id="logout-btn" class="logout-btn">Logout</button>
             </div>
@@ -881,6 +903,10 @@
         const scannerMessage = document.getElementById('scanner-message');
         const updateMessage = document.getElementById('update-message');
         
+        // NEW: QR Data Display Elements
+        const qrDataDisplay = document.getElementById('qr-data-display');
+        const qrDataText = document.getElementById('qr-data-text');
+        
         // Enhanced API Call Function with better error handling
         async function apiCall(url, options = {}) {
             const controller = new AbortController();
@@ -951,7 +977,7 @@
         document.addEventListener('DOMContentLoaded', function() {
             console.log('🚀 ECE Freshers Welcome App v3.0 Initialized');
             console.log('🔗 API Base URL:', API_BASE);
-            console.log('🌟 Features: URL QR Codes, Real-time Updates, Photo Aspect Ratio');
+            console.log('🌟 Features: URL QR Codes, Real-time Updates, Photo Aspect Ratio, QR Data Display');
             initApp();
         });
         
@@ -1053,6 +1079,16 @@
                 </div>
             `;
             systemStatsContainer.style.display = 'grid';
+        }
+        
+        // NEW: Function to display QR data for testing
+        function displayQRData(qrData) {
+            qrDataText.textContent = qrData;
+            qrDataDisplay.style.display = 'block';
+            
+            // Also log to console for easy copying
+            console.log('📋 QR DATA FOR COLUMN L:', qrData);
+            console.log('💡 Copy the above line and paste it in Column L of your Google Sheet');
         }
         
         // Enhanced camera initialization
@@ -1301,6 +1337,9 @@
         async function handleScannedQR(qrData) {
             showMessage(scannerMessage, 'QR Code detected. Looking up student...', 'warning');
             
+            // NEW: Always display the QR data for testing purposes
+            displayQRData(qrData);
+            
             // Check if QR contains a URL
             const isURL = qrData.includes('http') || qrData.includes('.') || qrData.includes('/');
             if (isURL) {
@@ -1485,6 +1524,7 @@
             statusButtons.forEach(btn => btn.classList.remove('active'));
             systemStatsContainer.style.display = 'none';
             qrMatchInfo.style.display = 'none';
+            qrDataDisplay.style.display = 'none';
             
             showScreen('login-screen');
             setTimeout(() => usernameInput.focus(), 500);
